@@ -20,7 +20,20 @@ class User extends Authenticatable
      */
     protected $fillable = [
         'name',
+        'middle_name',
+        'suffix',
+        'religion',
         'email',
+        'mobile',
+        'role',
+        'province',
+        'city_municipality',
+        'barangay',
+        'activation_completed',
+        'otp_code',
+        'otp_expires_at',
+        'otp_verified_at',
+        'api_token',
         'password',
     ];
 
@@ -32,6 +45,8 @@ class User extends Authenticatable
     protected $hidden = [
         'password',
         'remember_token',
+        'api_token',
+        'otp_code',
     ];
 
     /**
@@ -44,6 +59,9 @@ class User extends Authenticatable
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
+            'activation_completed' => 'boolean',
+            'otp_expires_at' => 'datetime',
+            'otp_verified_at' => 'datetime',
         ];
     }
 }
