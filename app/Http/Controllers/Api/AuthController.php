@@ -335,32 +335,39 @@ class AuthController extends Controller
         $message = "Your BarangayMo OTP is {$otp}. Valid for 10 minutes. Do not share this code.";
 
         try {
-            $payload = [
-                'to' => $mobile,
-                'message' => $message,
-            ];
-            if ($sender !== '') {
-                $payload['sender'] = $sender;
+            $attempts = $this->smsRequestAttempts(
+                apiKey: $apiKey,
+                mobile: $mobile,
+                message: $message,
+                sender: $sender,
+            );
+
+            foreach ($attempts as $attempt) {
+                $request = Http::timeout($timeout)->acceptJson();
+
+                if (!empty($attempt['headers']) && is_array($attempt['headers'])) {
+                    $request = $request->withHeaders($attempt['headers']);
+                }
+
+                if (($attempt['encoding'] ?? 'json') === 'form') {
+                    $request = $request->asForm();
+                } else {
+                    $request = $request->asJson();
+                }
+
+                $payload = is_array($attempt['payload'] ?? null) ? $attempt['payload'] : [];
+                $response = $request->post($url, $payload);
+                if ($response->successful()) {
+                    return true;
+                }
+
+                Log::warning('TXTBOX OTP send attempt failed.', [
+                    'status' => $response->status(),
+                    'body' => $response->body(),
+                    'mobile' => $mobile,
+                    'attempt' => $attempt['name'] ?? 'unknown',
+                ]);
             }
-
-            $response = Http::timeout($timeout)
-                ->acceptJson()
-                ->withHeaders([
-                    'X-API-KEY' => $apiKey,
-                    'Authorization' => "Bearer {$apiKey}",
-                ])
-                ->asJson()
-                ->post($url, $payload);
-
-            if ($response->successful()) {
-                return true;
-            }
-
-            Log::warning('TXTBOX OTP send failed.', [
-                'status' => $response->status(),
-                'body' => $response->body(),
-                'mobile' => $mobile,
-            ]);
             return false;
         } catch (Throwable $e) {
             Log::error('TXTBOX OTP send exception.', [
@@ -402,6 +409,94 @@ class AuthController extends Controller
             return '63'.$digits;
         }
         return $digits;
+    }
+
+    /**
+     * @return array<int, array{name: string, encoding: string, headers: array<string, string>, payload: array<string, string>}>
+     */
+    private function smsRequestAttempts(
+        string $apiKey,
+        string $mobile,
+        string $message,
+        string $sender,
+    ): array {
+        $jsonPrimary = [
+            'to' => $mobile,
+            'message' => $message,
+        ];
+        if ($sender !== '') {
+            $jsonPrimary['sender'] = $sender;
+        }
+
+        $jsonAlternate = [
+            'recipient' => $mobile,
+            'content' => $message,
+        ];
+        if ($sender !== '') {
+            $jsonAlternate['sender_id'] = $sender;
+            $jsonAlternate['from'] = $sender;
+        }
+
+        $formPrimary = [
+            'api_key' => $apiKey,
+            'to' => $mobile,
+            'message' => $message,
+        ];
+        if ($sender !== '') {
+            $formPrimary['sender'] = $sender;
+        }
+
+        $formRecipient = [
+            'api_key' => $apiKey,
+            'recipient' => $mobile,
+            'message' => $message,
+        ];
+        if ($sender !== '') {
+            $formRecipient['sender_id'] = $sender;
+        }
+
+        return [
+            [
+                'name' => 'json-bearer-x-api-key',
+                'encoding' => 'json',
+                'headers' => [
+                    'X-API-KEY' => $apiKey,
+                    'Authorization' => "Bearer {$apiKey}",
+                ],
+                'payload' => $jsonPrimary,
+            ],
+            [
+                'name' => 'json-x-api-key-alternate',
+                'encoding' => 'json',
+                'headers' => [
+                    'X-API-KEY' => $apiKey,
+                ],
+                'payload' => $jsonAlternate,
+            ],
+            [
+                'name' => 'form-api-key-primary',
+                'encoding' => 'form',
+                'headers' => [],
+                'payload' => $formPrimary,
+            ],
+            [
+                'name' => 'form-recipient',
+                'encoding' => 'form',
+                'headers' => [],
+                'payload' => $formRecipient,
+            ],
+            [
+                'name' => 'form-apikey-variant',
+                'encoding' => 'form',
+                'headers' => [],
+                'payload' => [
+                    'apikey' => $apiKey,
+                    'number' => $mobile,
+                    'message' => $message,
+                    if ($sender !== '') 'from' => $sender,
+                ],
+            ],
+        ];
     }
 
     /**
