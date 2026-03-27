@@ -8,8 +8,11 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
+use Throwable;
 
 class AuthController extends Controller
 {
@@ -66,10 +69,19 @@ class AuthController extends Controller
             'otp_verified_at' => null,
         ]);
 
+        if (!$this->sendOtp($user, $otp)) {
+            return response()->json([
+                'message' => 'Account created, but OTP SMS could not be sent. Please tap Resend OTP.',
+                'otp_required' => true,
+                'otp_debug_code' => $this->debugOtpCode($otp),
+                'user' => $this->formatUser($user),
+            ], 503);
+        }
+
         return response()->json([
-            'message' => 'Account created successfully. Please verify OTP.',
+            'message' => 'Account created successfully. OTP has been sent.',
             'otp_required' => true,
-            'otp_debug_code' => $otp,
+            'otp_debug_code' => $this->debugOtpCode($otp),
             'user' => $this->formatUser($user),
         ], 201);
     }
@@ -107,10 +119,19 @@ class AuthController extends Controller
                 'otp_expires_at' => now()->addMinutes(10),
             ])->save();
 
+            if (!$this->sendOtp($user, $otp)) {
+                return response()->json([
+                    'message' => 'OTP SMS could not be sent right now. Please tap Resend OTP.',
+                    'otp_required' => true,
+                    'otp_debug_code' => $this->debugOtpCode($otp),
+                    'user' => $this->formatUser($user),
+                ], 503);
+            }
+
             return response()->json([
                 'message' => 'Verify your OTP before logging in.',
                 'otp_required' => true,
-                'otp_debug_code' => $otp,
+                'otp_debug_code' => $this->debugOtpCode($otp),
                 'user' => $this->formatUser($user),
             ], 403);
         }
@@ -205,10 +226,18 @@ class AuthController extends Controller
             'otp_expires_at' => now()->addMinutes(10),
         ])->save();
 
+        if (!$this->sendOtp($user, $otp)) {
+            return response()->json([
+                'message' => 'OTP SMS could not be sent right now. Please try again.',
+                'otp_required' => true,
+                'otp_debug_code' => $this->debugOtpCode($otp),
+            ], 503);
+        }
+
         return response()->json([
             'message' => 'OTP has been resent.',
             'otp_required' => true,
-            'otp_debug_code' => $otp,
+            'otp_debug_code' => $this->debugOtpCode($otp),
         ]);
     }
 
@@ -284,6 +313,95 @@ class AuthController extends Controller
         $user->forceFill(['api_token' => $hashedToken])->save();
 
         return $plainToken;
+    }
+
+    private function sendOtp(User $user, string $otp): bool
+    {
+        if (!$this->shouldSendSms()) {
+            return true;
+        }
+
+        $url = trim((string) config('services.txtbox.url'));
+        $apiKey = trim((string) config('services.txtbox.api_key'));
+        $timeout = (int) config('services.txtbox.timeout', 10);
+        $sender = trim((string) config('services.txtbox.sender'));
+
+        if ($url === '' || $apiKey === '') {
+            Log::warning('TXTBOX OTP config missing.');
+            return false;
+        }
+
+        $mobile = $this->toPhilippineMsisdn((string) $user->mobile);
+        $message = "Your BarangayMo OTP is {$otp}. Valid for 10 minutes. Do not share this code.";
+
+        try {
+            $payload = [
+                'to' => $mobile,
+                'message' => $message,
+            ];
+            if ($sender !== '') {
+                $payload['sender'] = $sender;
+            }
+
+            $response = Http::timeout($timeout)
+                ->acceptJson()
+                ->withHeaders([
+                    'X-API-KEY' => $apiKey,
+                    'Authorization' => "Bearer {$apiKey}",
+                ])
+                ->asJson()
+                ->post($url, $payload);
+
+            if ($response->successful()) {
+                return true;
+            }
+
+            Log::warning('TXTBOX OTP send failed.', [
+                'status' => $response->status(),
+                'body' => $response->body(),
+                'mobile' => $mobile,
+            ]);
+            return false;
+        } catch (Throwable $e) {
+            Log::error('TXTBOX OTP send exception.', [
+                'error' => $e->getMessage(),
+                'mobile' => $mobile,
+            ]);
+            return false;
+        }
+    }
+
+    private function shouldSendSms(): bool
+    {
+        if ((bool) config('services.txtbox.force_send', false)) {
+            return true;
+        }
+
+        return !app()->environment(['local', 'testing']);
+    }
+
+    private function debugOtpCode(string $otp): ?string
+    {
+        if (app()->environment(['local', 'testing'])) {
+            return $otp;
+        }
+
+        return null;
+    }
+
+    private function toPhilippineMsisdn(string $mobile): string
+    {
+        $digits = preg_replace('/\D+/', '', $mobile) ?? '';
+        if (str_starts_with($digits, '63')) {
+            return $digits;
+        }
+        if (str_starts_with($digits, '0')) {
+            return '63'.substr($digits, 1);
+        }
+        if (str_starts_with($digits, '9') && strlen($digits) === 10) {
+            return '63'.$digits;
+        }
+        return $digits;
     }
 
     /**
