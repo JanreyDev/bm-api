@@ -324,69 +324,37 @@ class AuthController extends Controller
         $url = trim((string) config('services.txtbox.url'));
         $apiKey = trim((string) config('services.txtbox.api_key'));
         $timeout = (int) config('services.txtbox.timeout', 10);
-        $sender = trim((string) config('services.txtbox.sender'));
 
         if ($url === '' || $apiKey === '') {
             Log::warning('TXTBOX OTP config missing.');
             return false;
         }
 
-        $mobile = $this->toPhilippineMsisdn((string) $user->mobile);
+        $mobile = $this->toTxtboxNumber((string) $user->mobile);
         $message = "Your BarangayMo OTP is {$otp}. Valid for 10 minutes. Do not share this code.";
 
         try {
-            $attempts = $this->smsRequestAttempts(
-                apiKey: $apiKey,
-                mobile: $mobile,
-                message: $message,
-                sender: $sender,
-            );
-
-            foreach ($attempts as $attempt) {
-                $request = Http::timeout($timeout)->acceptJson();
-
-                if (!empty($attempt['headers']) && is_array($attempt['headers'])) {
-                    $request = $request->withHeaders($attempt['headers']);
-                }
-
-                $requestUrl = $url;
-                if (($attempt['token_in_query'] ?? false) === true) {
-                    $separator = str_contains($url, '?') ? '&' : '?';
-                    $requestUrl = $url.$separator.'token='.urlencode($apiKey).'&Token='.urlencode($apiKey);
-                }
-
-                if (!empty($attempt['query']) && is_array($attempt['query'])) {
-                    $queryString = http_build_query($attempt['query']);
-                    if ($queryString !== '') {
-                        $separator = str_contains($requestUrl, '?') ? '&' : '?';
-                        $requestUrl .= $separator.$queryString;
-                    }
-                }
-
-                if (($attempt['encoding'] ?? 'json') === 'form') {
-                    $request = $request->asForm();
-                } elseif (($attempt['encoding'] ?? 'json') === 'multipart') {
-                    $request = $request->asMultipart();
-                } else {
-                    $request = $request->asJson();
-                }
-
-                $payload = is_array($attempt['payload'] ?? null) ? $attempt['payload'] : [];
-                $method = strtolower((string) ($attempt['method'] ?? 'post'));
-                $response = $method === 'get'
-                    ? $request->get($requestUrl)
-                    : $request->post($requestUrl, $payload);
-                if ($response->successful()) {
-                    return true;
-                }
-
-                Log::warning('TXTBOX OTP send attempt failed.', [
-                    'status' => $response->status(),
-                    'body' => $response->body(),
-                    'mobile' => $mobile,
-                    'attempt' => $attempt['name'] ?? 'unknown',
+            $response = Http::timeout($timeout)
+                ->withHeaders([
+                    'X-TxtBox-Auth' => $apiKey,
+                    'Content-Type' => 'application/json',
+                ])
+                ->asJson()
+                ->post($url, [
+                    'message' => $message,
+                    'number' => $mobile,
                 ]);
+
+            if ($response->successful()) {
+                return true;
             }
+
+            Log::warning('TXTBOX OTP send failed.', [
+                'status' => $response->status(),
+                'body' => $response->body(),
+                'mobile' => $mobile,
+                'attempt' => 'spacall-compatible',
+            ]);
             return false;
         } catch (Throwable $e) {
             Log::error('TXTBOX OTP send exception.', [
@@ -415,205 +383,16 @@ class AuthController extends Controller
         return null;
     }
 
-    private function toPhilippineMsisdn(string $mobile): string
+    private function toTxtboxNumber(string $mobile): string
     {
         $digits = preg_replace('/\D+/', '', $mobile) ?? '';
-        if (str_starts_with($digits, '63')) {
-            return $digits;
-        }
-        if (str_starts_with($digits, '0')) {
-            return '63'.substr($digits, 1);
+        if (str_starts_with($digits, '63') && strlen($digits) === 12) {
+            return '0'.substr($digits, 2);
         }
         if (str_starts_with($digits, '9') && strlen($digits) === 10) {
-            return '63'.$digits;
+            return '0'.$digits;
         }
         return $digits;
-    }
-
-    /**
-     * @return array<int, array{name: string, method: string, encoding: string, token_in_query: bool, headers: array<string, string>, payload: array<string, string>, query?: array<string, string>}>
-     */
-    private function smsRequestAttempts(
-        string $apiKey,
-        string $mobile,
-        string $message,
-        string $sender,
-    ): array {
-        $jsonPrimary = [
-            'token' => $apiKey,
-            'Token' => $apiKey,
-            'to' => $mobile,
-            'message' => $message,
-        ];
-        if ($sender !== '') {
-            $jsonPrimary['sender'] = $sender;
-        }
-
-        $jsonAlternate = [
-            'token' => $apiKey,
-            'Token' => $apiKey,
-            'recipient' => $mobile,
-            'content' => $message,
-        ];
-        if ($sender !== '') {
-            $jsonAlternate['sender_id'] = $sender;
-            $jsonAlternate['from'] = $sender;
-        }
-
-        $formPrimary = [
-            'token' => $apiKey,
-            'Token' => $apiKey,
-            'api_key' => $apiKey,
-            'to' => $mobile,
-            'message' => $message,
-        ];
-        if ($sender !== '') {
-            $formPrimary['sender'] = $sender;
-        }
-
-        $formRecipient = [
-            'token' => $apiKey,
-            'Token' => $apiKey,
-            'api_key' => $apiKey,
-            'recipient' => $mobile,
-            'message' => $message,
-        ];
-        if ($sender !== '') {
-            $formRecipient['sender_id'] = $sender;
-        }
-
-        return [
-            [
-                'name' => 'json-bearer-x-api-key',
-                'method' => 'post',
-                'encoding' => 'json',
-                'token_in_query' => false,
-                'headers' => [
-                    'X-API-KEY' => $apiKey,
-                    'Authorization' => "Bearer {$apiKey}",
-                    'token' => $apiKey,
-                ],
-                'payload' => $jsonPrimary,
-            ],
-            [
-                'name' => 'json-x-api-key-alternate',
-                'method' => 'post',
-                'encoding' => 'json',
-                'token_in_query' => false,
-                'headers' => [
-                    'X-API-KEY' => $apiKey,
-                    'token' => $apiKey,
-                ],
-                'payload' => $jsonAlternate,
-            ],
-            [
-                'name' => 'form-api-key-primary',
-                'method' => 'post',
-                'encoding' => 'form',
-                'token_in_query' => false,
-                'headers' => [
-                    'token' => $apiKey,
-                ],
-                'payload' => $formPrimary,
-            ],
-            [
-                'name' => 'form-recipient',
-                'method' => 'post',
-                'encoding' => 'form',
-                'token_in_query' => false,
-                'headers' => [
-                    'token' => $apiKey,
-                ],
-                'payload' => $formRecipient,
-            ],
-            [
-                'name' => 'form-apikey-variant',
-                'method' => 'post',
-                'encoding' => 'form',
-                'token_in_query' => false,
-                'headers' => [
-                    'token' => $apiKey,
-                ],
-                'payload' => array_filter([
-                    'token' => $apiKey,
-                    'Token' => $apiKey,
-                    'apikey' => $apiKey,
-                    'number' => $mobile,
-                    'message' => $message,
-                    'from' => $sender !== '' ? $sender : null,
-                ], static fn ($value): bool => $value !== null),
-            ],
-            [
-                'name' => 'form-token-query',
-                'method' => 'post',
-                'encoding' => 'form',
-                'token_in_query' => true,
-                'headers' => [],
-                'payload' => array_filter([
-                    'token' => $apiKey,
-                    'Token' => $apiKey,
-                    'to' => $mobile,
-                    'message' => $message,
-                    'sender' => $sender !== '' ? $sender : null,
-                ], static fn ($value): bool => $value !== null),
-            ],
-            [
-                'name' => 'multipart-token-phone-message',
-                'method' => 'post',
-                'encoding' => 'multipart',
-                'token_in_query' => false,
-                'headers' => [],
-                'payload' => array_filter([
-                    'token' => $apiKey,
-                    'Token' => $apiKey,
-                    'phone' => $mobile,
-                    'number' => $mobile,
-                    'to' => $mobile,
-                    'message' => $message,
-                    'sender' => $sender !== '' ? $sender : null,
-                ], static fn ($value): bool => $value !== null),
-            ],
-            [
-                'name' => 'form-token-aliases',
-                'method' => 'post',
-                'encoding' => 'form',
-                'token_in_query' => false,
-                'headers' => [],
-                'payload' => array_filter([
-                    'token' => $apiKey,
-                    'Token' => $apiKey,
-                    'api_token' => $apiKey,
-                    'access_token' => $apiKey,
-                    'auth_token' => $apiKey,
-                    'key' => $apiKey,
-                    'api_key' => $apiKey,
-                    'apikey' => $apiKey,
-                    'to' => $mobile,
-                    'recipient' => $mobile,
-                    'number' => $mobile,
-                    'phone' => $mobile,
-                    'message' => $message,
-                    'sender' => $sender !== '' ? $sender : null,
-                ], static fn ($value): bool => $value !== null),
-            ],
-            [
-                'name' => 'get-query-token-to-message',
-                'method' => 'get',
-                'encoding' => 'json',
-                'token_in_query' => false,
-                'headers' => [],
-                'payload' => [],
-                'query' => array_filter([
-                    'token' => $apiKey,
-                    'Token' => $apiKey,
-                    'to' => $mobile,
-                    'number' => $mobile,
-                    'phone' => $mobile,
-                    'message' => $message,
-                    'sender' => $sender !== '' ? $sender : null,
-                ], static fn ($value): bool => $value !== null),
-            ],
-        ];
     }
 
     /**
