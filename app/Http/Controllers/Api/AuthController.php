@@ -352,11 +352,13 @@ class AuthController extends Controller
                 $requestUrl = $url;
                 if (($attempt['token_in_query'] ?? false) === true) {
                     $separator = str_contains($url, '?') ? '&' : '?';
-                    $requestUrl = $url.$separator.'token='.urlencode($apiKey);
+                    $requestUrl = $url.$separator.'token='.urlencode($apiKey).'&Token='.urlencode($apiKey);
                 }
 
                 if (($attempt['encoding'] ?? 'json') === 'form') {
                     $request = $request->asForm();
+                } elseif (($attempt['encoding'] ?? 'json') === 'multipart') {
+                    $request = $request->asMultipart();
                 } else {
                     $request = $request->asJson();
                 }
@@ -428,6 +430,7 @@ class AuthController extends Controller
     ): array {
         $jsonPrimary = [
             'token' => $apiKey,
+            'Token' => $apiKey,
             'to' => $mobile,
             'message' => $message,
         ];
@@ -437,6 +440,7 @@ class AuthController extends Controller
 
         $jsonAlternate = [
             'token' => $apiKey,
+            'Token' => $apiKey,
             'recipient' => $mobile,
             'content' => $message,
         ];
@@ -447,6 +451,7 @@ class AuthController extends Controller
 
         $formPrimary = [
             'token' => $apiKey,
+            'Token' => $apiKey,
             'api_key' => $apiKey,
             'to' => $mobile,
             'message' => $message,
@@ -457,6 +462,7 @@ class AuthController extends Controller
 
         $formRecipient = [
             'token' => $apiKey,
+            'Token' => $apiKey,
             'api_key' => $apiKey,
             'recipient' => $mobile,
             'message' => $message,
@@ -514,6 +520,7 @@ class AuthController extends Controller
                 ],
                 'payload' => array_filter([
                     'token' => $apiKey,
+                    'Token' => $apiKey,
                     'apikey' => $apiKey,
                     'number' => $mobile,
                     'message' => $message,
@@ -526,6 +533,23 @@ class AuthController extends Controller
                 'token_in_query' => true,
                 'headers' => [],
                 'payload' => array_filter([
+                    'token' => $apiKey,
+                    'Token' => $apiKey,
+                    'to' => $mobile,
+                    'message' => $message,
+                    'sender' => $sender !== '' ? $sender : null,
+                ], static fn ($value): bool => $value !== null),
+            ],
+            [
+                'name' => 'multipart-token-phone-message',
+                'encoding' => 'multipart',
+                'token_in_query' => false,
+                'headers' => [],
+                'payload' => array_filter([
+                    'token' => $apiKey,
+                    'Token' => $apiKey,
+                    'phone' => $mobile,
+                    'number' => $mobile,
                     'to' => $mobile,
                     'message' => $message,
                     'sender' => $sender !== '' ? $sender : null,
