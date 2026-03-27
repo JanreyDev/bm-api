@@ -349,6 +349,12 @@ class AuthController extends Controller
                     $request = $request->withHeaders($attempt['headers']);
                 }
 
+                $requestUrl = $url;
+                if (($attempt['token_in_query'] ?? false) === true) {
+                    $separator = str_contains($url, '?') ? '&' : '?';
+                    $requestUrl = $url.$separator.'token='.urlencode($apiKey);
+                }
+
                 if (($attempt['encoding'] ?? 'json') === 'form') {
                     $request = $request->asForm();
                 } else {
@@ -356,7 +362,7 @@ class AuthController extends Controller
                 }
 
                 $payload = is_array($attempt['payload'] ?? null) ? $attempt['payload'] : [];
-                $response = $request->post($url, $payload);
+                $response = $request->post($requestUrl, $payload);
                 if ($response->successful()) {
                     return true;
                 }
@@ -412,7 +418,7 @@ class AuthController extends Controller
     }
 
     /**
-     * @return array<int, array{name: string, encoding: string, headers: array<string, string>, payload: array<string, string>}>
+     * @return array<int, array{name: string, encoding: string, token_in_query: bool, headers: array<string, string>, payload: array<string, string>}>
      */
     private function smsRequestAttempts(
         string $apiKey,
@@ -463,42 +469,66 @@ class AuthController extends Controller
             [
                 'name' => 'json-bearer-x-api-key',
                 'encoding' => 'json',
+                'token_in_query' => false,
                 'headers' => [
                     'X-API-KEY' => $apiKey,
                     'Authorization' => "Bearer {$apiKey}",
+                    'token' => $apiKey,
                 ],
                 'payload' => $jsonPrimary,
             ],
             [
                 'name' => 'json-x-api-key-alternate',
                 'encoding' => 'json',
+                'token_in_query' => false,
                 'headers' => [
                     'X-API-KEY' => $apiKey,
+                    'token' => $apiKey,
                 ],
                 'payload' => $jsonAlternate,
             ],
             [
                 'name' => 'form-api-key-primary',
                 'encoding' => 'form',
-                'headers' => [],
+                'token_in_query' => false,
+                'headers' => [
+                    'token' => $apiKey,
+                ],
                 'payload' => $formPrimary,
             ],
             [
                 'name' => 'form-recipient',
                 'encoding' => 'form',
-                'headers' => [],
+                'token_in_query' => false,
+                'headers' => [
+                    'token' => $apiKey,
+                ],
                 'payload' => $formRecipient,
             ],
             [
                 'name' => 'form-apikey-variant',
                 'encoding' => 'form',
-                'headers' => [],
+                'token_in_query' => false,
+                'headers' => [
+                    'token' => $apiKey,
+                ],
                 'payload' => array_filter([
                     'token' => $apiKey,
                     'apikey' => $apiKey,
                     'number' => $mobile,
                     'message' => $message,
                     'from' => $sender !== '' ? $sender : null,
+                ], static fn ($value): bool => $value !== null),
+            ],
+            [
+                'name' => 'form-token-query',
+                'encoding' => 'form',
+                'token_in_query' => true,
+                'headers' => [],
+                'payload' => array_filter([
+                    'to' => $mobile,
+                    'message' => $message,
+                    'sender' => $sender !== '' ? $sender : null,
                 ], static fn ($value): bool => $value !== null),
             ],
         ];
