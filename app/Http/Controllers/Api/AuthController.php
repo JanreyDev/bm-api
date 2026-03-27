@@ -421,6 +421,7 @@ class AuthController extends Controller
         string $sender,
     ): array {
         $jsonPrimary = [
+            'token' => $apiKey,
             'to' => $mobile,
             'message' => $message,
         ];
@@ -429,6 +430,7 @@ class AuthController extends Controller
         }
 
         $jsonAlternate = [
+            'token' => $apiKey,
             'recipient' => $mobile,
             'content' => $message,
         ];
@@ -438,6 +440,7 @@ class AuthController extends Controller
         }
 
         $formPrimary = [
+            'token' => $apiKey,
             'api_key' => $apiKey,
             'to' => $mobile,
             'message' => $message,
@@ -447,6 +450,7 @@ class AuthController extends Controller
         }
 
         $formRecipient = [
+            'token' => $apiKey,
             'api_key' => $apiKey,
             'recipient' => $mobile,
             'message' => $message,
@@ -490,6 +494,7 @@ class AuthController extends Controller
                 'encoding' => 'form',
                 'headers' => [],
                 'payload' => array_filter([
+                    'token' => $apiKey,
                     'apikey' => $apiKey,
                     'number' => $mobile,
                     'message' => $message,
