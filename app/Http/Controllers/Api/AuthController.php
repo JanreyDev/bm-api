@@ -355,6 +355,14 @@ class AuthController extends Controller
                     $requestUrl = $url.$separator.'token='.urlencode($apiKey).'&Token='.urlencode($apiKey);
                 }
 
+                if (!empty($attempt['query']) && is_array($attempt['query'])) {
+                    $queryString = http_build_query($attempt['query']);
+                    if ($queryString !== '') {
+                        $separator = str_contains($requestUrl, '?') ? '&' : '?';
+                        $requestUrl .= $separator.$queryString;
+                    }
+                }
+
                 if (($attempt['encoding'] ?? 'json') === 'form') {
                     $request = $request->asForm();
                 } elseif (($attempt['encoding'] ?? 'json') === 'multipart') {
@@ -364,7 +372,10 @@ class AuthController extends Controller
                 }
 
                 $payload = is_array($attempt['payload'] ?? null) ? $attempt['payload'] : [];
-                $response = $request->post($requestUrl, $payload);
+                $method = strtolower((string) ($attempt['method'] ?? 'post'));
+                $response = $method === 'get'
+                    ? $request->get($requestUrl)
+                    : $request->post($requestUrl, $payload);
                 if ($response->successful()) {
                     return true;
                 }
@@ -420,7 +431,7 @@ class AuthController extends Controller
     }
 
     /**
-     * @return array<int, array{name: string, encoding: string, token_in_query: bool, headers: array<string, string>, payload: array<string, string>}>
+     * @return array<int, array{name: string, method: string, encoding: string, token_in_query: bool, headers: array<string, string>, payload: array<string, string>, query?: array<string, string>}>
      */
     private function smsRequestAttempts(
         string $apiKey,
@@ -474,6 +485,7 @@ class AuthController extends Controller
         return [
             [
                 'name' => 'json-bearer-x-api-key',
+                'method' => 'post',
                 'encoding' => 'json',
                 'token_in_query' => false,
                 'headers' => [
@@ -485,6 +497,7 @@ class AuthController extends Controller
             ],
             [
                 'name' => 'json-x-api-key-alternate',
+                'method' => 'post',
                 'encoding' => 'json',
                 'token_in_query' => false,
                 'headers' => [
@@ -495,6 +508,7 @@ class AuthController extends Controller
             ],
             [
                 'name' => 'form-api-key-primary',
+                'method' => 'post',
                 'encoding' => 'form',
                 'token_in_query' => false,
                 'headers' => [
@@ -504,6 +518,7 @@ class AuthController extends Controller
             ],
             [
                 'name' => 'form-recipient',
+                'method' => 'post',
                 'encoding' => 'form',
                 'token_in_query' => false,
                 'headers' => [
@@ -513,6 +528,7 @@ class AuthController extends Controller
             ],
             [
                 'name' => 'form-apikey-variant',
+                'method' => 'post',
                 'encoding' => 'form',
                 'token_in_query' => false,
                 'headers' => [
@@ -529,6 +545,7 @@ class AuthController extends Controller
             ],
             [
                 'name' => 'form-token-query',
+                'method' => 'post',
                 'encoding' => 'form',
                 'token_in_query' => true,
                 'headers' => [],
@@ -542,6 +559,7 @@ class AuthController extends Controller
             ],
             [
                 'name' => 'multipart-token-phone-message',
+                'method' => 'post',
                 'encoding' => 'multipart',
                 'token_in_query' => false,
                 'headers' => [],
@@ -551,6 +569,23 @@ class AuthController extends Controller
                     'phone' => $mobile,
                     'number' => $mobile,
                     'to' => $mobile,
+                    'message' => $message,
+                    'sender' => $sender !== '' ? $sender : null,
+                ], static fn ($value): bool => $value !== null),
+            ],
+            [
+                'name' => 'get-query-token-to-message',
+                'method' => 'get',
+                'encoding' => 'json',
+                'token_in_query' => false,
+                'headers' => [],
+                'payload' => [],
+                'query' => array_filter([
+                    'token' => $apiKey,
+                    'Token' => $apiKey,
+                    'to' => $mobile,
+                    'number' => $mobile,
+                    'phone' => $mobile,
                     'message' => $message,
                     'sender' => $sender !== '' ? $sender : null,
                 ], static fn ($value): bool => $value !== null),
