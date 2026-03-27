@@ -489,12 +489,12 @@ class AuthController extends Controller
                 'name' => 'form-apikey-variant',
                 'encoding' => 'form',
                 'headers' => [],
-                'payload' => [
+                'payload' => array_filter([
                     'apikey' => $apiKey,
                     'number' => $mobile,
                     'message' => $message,
-                    if ($sender !== '') 'from' => $sender,
-                ],
+                    'from' => $sender !== '' ? $sender : null,
+                ], static fn ($value): bool => $value !== null),
             ],
         ];
     }
