@@ -43,4 +43,9 @@ return [
         'force_send' => filter_var(env('TXTBOX_FORCE_SEND', false), FILTER_VALIDATE_BOOLEAN),
     ],
 
+    'psgc' => [
+        'base_url' => env('PSGC_BASE_URL', 'https://psgc.cloud/api'),
+        'timeout' => (int) env('PSGC_TIMEOUT_SECONDS', 30),
+    ],
+
 ];
