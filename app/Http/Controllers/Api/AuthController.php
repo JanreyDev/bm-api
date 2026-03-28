@@ -20,7 +20,7 @@ class AuthController extends Controller
     {
         $validator = Validator::make($request->all(), [
             'name' => ['required', 'string', 'max:255'],
-            'email' => ['nullable', 'string', 'email:rfc,dns', 'max:255', 'unique:users,email'],
+            'email' => ['nullable', 'string', 'email', 'max:255', 'unique:users,email'],
             'mobile' => ['required', 'string', 'regex:/^\d{10,15}$/'],
             'role' => ['required', 'in:resident,official'],
             'password' => ['required', 'digits:6', 'confirmed'],
