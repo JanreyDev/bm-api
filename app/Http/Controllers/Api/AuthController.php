@@ -20,6 +20,7 @@ class AuthController extends Controller
     {
         $validator = Validator::make($request->all(), [
             'name' => ['required', 'string', 'max:255'],
+            'email' => ['nullable', 'string', 'email:rfc,dns', 'max:255', 'unique:users,email'],
             'mobile' => ['required', 'string', 'regex:/^\d{10,15}$/'],
             'role' => ['required', 'in:resident,official'],
             'password' => ['required', 'digits:6', 'confirmed'],
@@ -53,7 +54,7 @@ class AuthController extends Controller
         $otp = $this->generateOtp();
         $user = User::query()->create([
             'name' => trim((string) $request->string('name')),
-            'email' => $this->buildSyntheticEmail($mobile, $role),
+            'email' => $this->resolveRegistrationEmail($request, $mobile, $role),
             'password' => Hash::make((string) $request->string('password')),
             'mobile' => $mobile,
             'role' => $role,
@@ -292,6 +293,16 @@ class AuthController extends Controller
         return sprintf('%s.%s@barangaymo.local', $mobile, $role);
     }
 
+    private function resolveRegistrationEmail(Request $request, string $mobile, string $role): string
+    {
+        $email = strtolower(trim((string) $request->input('email', '')));
+        if ($email !== '') {
+            return $email;
+        }
+
+        return $this->buildSyntheticEmail($mobile, $role);
+    }
+
     private function generateOtp(): string
     {
         return (string) random_int(100000, 999999);
@@ -403,6 +414,7 @@ class AuthController extends Controller
         return [
             'id' => $user->id,
             'name' => $user->name,
+            'email' => $user->email,
             'mobile' => $user->mobile,
             'role' => $user->role,
             'activation_completed' => (bool) $user->activation_completed,
