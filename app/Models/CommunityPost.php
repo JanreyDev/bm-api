@@ -18,6 +18,7 @@ class CommunityPost extends Model
         'barangay',
         'author_name',
         'message',
+        'image_base64',
         'is_official',
     ];
 
