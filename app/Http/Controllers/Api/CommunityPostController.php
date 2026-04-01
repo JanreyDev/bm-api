@@ -3,6 +3,9 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Api\StoreCommunityPostRequest;
+use App\Http\Requests\Api\UpdateCommunityPostRequest;
+use App\Http\Resources\CommunityPostResource;
 use App\Models\CommunityPost;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
@@ -11,25 +14,30 @@ use Illuminate\Support\Facades\Auth;
 
 class CommunityPostController extends Controller
 {
+    /**
+     * Roles that can create community posts.
+     *
+     * @var list<string>
+     */
+    private const POSTABLE_ROLES = ['resident', 'official'];
+
     public function index(Request $request): JsonResponse
     {
-        /** @var User|null $user */
-        $user = Auth::guard('api')->user();
+        $user = $this->authenticatedUserOrNull();
         if ($user === null) {
             return response()->json([
                 'message' => 'Unauthenticated.',
             ], 401);
         }
-
-        $barangay = trim((string) $user->barangay);
-        if ($barangay === '') {
+        $barangay = $this->resolveBarangayOrNull($user);
+        if ($barangay === null) {
             return response()->json([
                 'message' => 'Set your barangay in your profile before opening the community feed.',
             ], 422);
         }
 
         $posts = CommunityPost::query()
-            ->where('barangay', $barangay)
+            ->inBarangay($barangay)
             ->latest()
             ->limit(120)
             ->get();
@@ -37,86 +45,71 @@ class CommunityPostController extends Controller
         return response()->json([
             'message' => 'Community posts loaded.',
             'barangay' => $barangay,
-            'posts' => $posts->map(fn (CommunityPost $post): array => $this->formatPost($post, $user))->values(),
+            'posts' => $posts->map(
+                fn (CommunityPost $post): array => (new CommunityPostResource($post, $user))->toArray($request)
+            )->values(),
         ]);
     }
 
-    public function store(Request $request): JsonResponse
+    public function store(StoreCommunityPostRequest $request): JsonResponse
     {
-        /** @var User|null $user */
-        $user = Auth::guard('api')->user();
+        $user = $this->authenticatedUserOrNull();
         if ($user === null) {
             return response()->json([
                 'message' => 'Unauthenticated.',
             ], 401);
         }
+        $validated = $request->validated();
 
-        $validated = $request->validate([
-            'message' => ['required', 'string', 'min:5', 'max:2000'],
-            'image_base64' => ['nullable', 'string', 'max:5000000'],
-        ]);
-
-        if (!in_array($user->role, ['resident', 'official'], true)) {
+        if (!in_array($user->role, self::POSTABLE_ROLES, true)) {
             return response()->json([
                 'message' => 'Only resident and official accounts can create community posts.',
             ], 403);
         }
 
-        $barangay = trim((string) $user->barangay);
-        if ($barangay === '') {
+        $barangay = $this->resolveBarangayOrNull($user);
+        if ($barangay === null) {
             return response()->json([
                 'message' => 'Set your barangay in your profile before publishing posts.',
             ], 422);
         }
 
         $isOfficial = $user->role === 'official';
-        $authorName = $isOfficial ? 'Barangay '.$barangay : trim((string) $user->name);
-        if ($authorName === '') {
-            $authorName = $isOfficial ? 'Barangay '.$barangay : 'Verified Resident';
-        }
+        $authorName = $this->resolveAuthorName($user, $barangay, $isOfficial);
 
         $post = CommunityPost::query()->create([
             'user_id' => $user->id,
             'barangay' => $barangay,
             'author_name' => $authorName,
             'message' => trim((string) $validated['message']),
-            'image_base64' => $this->sanitizeBase64Image($validated['image_base64'] ?? null),
+            'image_base64' => $this->normalizeImagePayload($validated['image_base64'] ?? null),
             'is_official' => $isOfficial,
         ]);
 
         return response()->json([
             'message' => 'Post published.',
-            'post' => $this->formatPost($post, $user),
+            'post' => (new CommunityPostResource($post, $user))->toArray($request),
         ], 201);
     }
 
-    public function update(Request $request, int $postId): JsonResponse
+    public function update(UpdateCommunityPostRequest $request, int $postId): JsonResponse
     {
-        /** @var User|null $user */
-        $user = Auth::guard('api')->user();
+        $user = $this->authenticatedUserOrNull();
         if ($user === null) {
             return response()->json([
                 'message' => 'Unauthenticated.',
             ], 401);
         }
+        $validated = $request->validated();
 
-        $validated = $request->validate([
-            'message' => ['required', 'string', 'min:5', 'max:2000'],
-            'image_base64' => ['nullable', 'string', 'max:5000000'],
-        ]);
-
-        $post = CommunityPost::query()
-            ->where('id', $postId)
-            ->where('barangay', trim((string) $user->barangay))
-            ->first();
-
+        $post = $this->findPostInViewerBarangay($postId, $user);
         if ($post === null) {
             return response()->json([
                 'message' => 'Post not found.',
             ], 404);
         }
 
-        if ((int) $post->user_id !== (int) $user->id) {
+        if (!$post->canManageBy($user)) {
             return response()->json([
                 'message' => 'You can only edit your own posts.',
             ], 403);
@@ -124,37 +117,31 @@ class CommunityPostController extends Controller
 
         $post->forceFill([
             'message' => trim((string) $validated['message']),
-            'image_base64' => $this->sanitizeBase64Image($validated['image_base64'] ?? null),
+            'image_base64' => $this->normalizeImagePayload($validated['image_base64'] ?? null),
         ])->save();
 
         return response()->json([
             'message' => 'Post updated.',
-            'post' => $this->formatPost($post->fresh() ?? $post, $user),
+            'post' => (new CommunityPostResource($post->fresh() ?? $post, $user))->toArray($request),
         ]);
     }
 
     public function destroy(Request $request, int $postId): JsonResponse
     {
-        /** @var User|null $user */
-        $user = Auth::guard('api')->user();
+        $user = $this->authenticatedUserOrNull();
         if ($user === null) {
             return response()->json([
                 'message' => 'Unauthenticated.',
             ], 401);
         }
-
-        $post = CommunityPost::query()
-            ->where('id', $postId)
-            ->where('barangay', trim((string) $user->barangay))
-            ->first();
-
+        $post = $this->findPostInViewerBarangay($postId, $user);
         if ($post === null) {
             return response()->json([
                 'message' => 'Post not found.',
             ], 404);
         }
 
-        if ((int) $post->user_id !== (int) $user->id) {
+        if (!$post->canManageBy($user)) {
             return response()->json([
                 'message' => 'You can only delete your own posts.',
             ], 403);
@@ -167,26 +154,44 @@ class CommunityPostController extends Controller
         ]);
     }
 
-    /**
-     * @return array<string, mixed>
-     */
-    private function formatPost(CommunityPost $post, User $viewer): array
+    private function authenticatedUserOrNull(): ?User
     {
-        return [
-            'id' => $post->id,
-            'user_id' => $post->user_id,
-            'author' => $post->author_name,
-            'message' => $post->message,
-            'image_base64' => $post->image_base64,
-            'barangay' => $post->barangay,
-            'is_official' => (bool) $post->is_official,
-            'is_verified_resident' => !(bool) $post->is_official,
-            'can_manage' => (int) $post->user_id === (int) $viewer->id,
-            'posted_at' => optional($post->created_at)?->toIso8601String(),
-        ];
+        /** @var User|null $user */
+        return Auth::guard('api')->user();
     }
 
-    private function sanitizeBase64Image(mixed $value): ?string
+    private function resolveBarangayOrNull(User $user): ?string
+    {
+        $barangay = trim((string) $user->barangay);
+
+        return $barangay !== '' ? $barangay : null;
+    }
+
+    private function resolveAuthorName(User $user, string $barangay, bool $isOfficial): string
+    {
+        if ($isOfficial) {
+            return 'Barangay '.$barangay;
+        }
+
+        $author = trim((string) $user->name);
+
+        return $author !== '' ? $author : 'Verified Resident';
+    }
+
+    private function findPostInViewerBarangay(int $postId, User $viewer): ?CommunityPost
+    {
+        $barangay = $this->resolveBarangayOrNull($viewer);
+        if ($barangay === null) {
+            return null;
+        }
+
+        return CommunityPost::query()
+            ->where('id', $postId)
+            ->inBarangay($barangay)
+            ->first();
+    }
+
+    private function normalizeImagePayload(mixed $value): ?string
     {
         if (!is_string($value)) {
             return null;
