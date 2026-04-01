@@ -1,7 +1,8 @@
 <?php
 
 use App\Http\Controllers\Api\AuthController;
-use App\Http\Controllers\Api\CommunityPostController;
+use App\Http\Controllers\Api\Community\CommentController as CommunityCommentController;
+use App\Http\Controllers\Api\Community\PostController as CommunityPostController;
 use App\Http\Controllers\Api\LocationController;
 use Illuminate\Support\Facades\Route;
 
@@ -18,6 +19,8 @@ Route::middleware('auth:api')->group(function (): void {
     Route::post('/activation/complete', [AuthController::class, 'completeActivation']);
     Route::get('/community/posts', [CommunityPostController::class, 'index']);
     Route::post('/community/posts', [CommunityPostController::class, 'store']);
+    Route::get('/community/posts/{postId}', [CommunityPostController::class, 'show']);
     Route::patch('/community/posts/{postId}', [CommunityPostController::class, 'update']);
     Route::delete('/community/posts/{postId}', [CommunityPostController::class, 'destroy']);
+    Route::post('/community/posts/{postId}/comments', [CommunityCommentController::class, 'store']);
 });

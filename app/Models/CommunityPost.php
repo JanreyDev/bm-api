@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class CommunityPost extends Model
 {
@@ -36,6 +37,11 @@ class CommunityPost extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function comments(): HasMany
+    {
+        return $this->hasMany(CommunityPostComment::class, 'community_post_id');
     }
 
     public function scopeInBarangay(Builder $query, string $barangay): Builder
