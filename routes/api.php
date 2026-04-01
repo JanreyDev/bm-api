@@ -18,4 +18,6 @@ Route::middleware('auth:api')->group(function (): void {
     Route::post('/activation/complete', [AuthController::class, 'completeActivation']);
     Route::get('/community/posts', [CommunityPostController::class, 'index']);
     Route::post('/community/posts', [CommunityPostController::class, 'store']);
+    Route::patch('/community/posts/{postId}', [CommunityPostController::class, 'update']);
+    Route::delete('/community/posts/{postId}', [CommunityPostController::class, 'destroy']);
 });

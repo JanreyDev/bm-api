@@ -37,7 +37,7 @@ class CommunityPostController extends Controller
         return response()->json([
             'message' => 'Community posts loaded.',
             'barangay' => $barangay,
-            'posts' => $posts->map(fn (CommunityPost $post): array => $this->formatPost($post))->values(),
+            'posts' => $posts->map(fn (CommunityPost $post): array => $this->formatPost($post, $user))->values(),
         ]);
     }
 
@@ -86,23 +86,102 @@ class CommunityPostController extends Controller
 
         return response()->json([
             'message' => 'Post published.',
-            'post' => $this->formatPost($post),
+            'post' => $this->formatPost($post, $user),
         ], 201);
+    }
+
+    public function update(Request $request, int $postId): JsonResponse
+    {
+        /** @var User|null $user */
+        $user = Auth::guard('api')->user();
+        if ($user === null) {
+            return response()->json([
+                'message' => 'Unauthenticated.',
+            ], 401);
+        }
+
+        $validated = $request->validate([
+            'message' => ['required', 'string', 'min:5', 'max:2000'],
+            'image_base64' => ['nullable', 'string', 'max:5000000'],
+        ]);
+
+        $post = CommunityPost::query()
+            ->where('id', $postId)
+            ->where('barangay', trim((string) $user->barangay))
+            ->first();
+
+        if ($post === null) {
+            return response()->json([
+                'message' => 'Post not found.',
+            ], 404);
+        }
+
+        if ((int) $post->user_id !== (int) $user->id) {
+            return response()->json([
+                'message' => 'You can only edit your own posts.',
+            ], 403);
+        }
+
+        $post->forceFill([
+            'message' => trim((string) $validated['message']),
+            'image_base64' => $this->sanitizeBase64Image($validated['image_base64'] ?? null),
+        ])->save();
+
+        return response()->json([
+            'message' => 'Post updated.',
+            'post' => $this->formatPost($post->fresh() ?? $post, $user),
+        ]);
+    }
+
+    public function destroy(Request $request, int $postId): JsonResponse
+    {
+        /** @var User|null $user */
+        $user = Auth::guard('api')->user();
+        if ($user === null) {
+            return response()->json([
+                'message' => 'Unauthenticated.',
+            ], 401);
+        }
+
+        $post = CommunityPost::query()
+            ->where('id', $postId)
+            ->where('barangay', trim((string) $user->barangay))
+            ->first();
+
+        if ($post === null) {
+            return response()->json([
+                'message' => 'Post not found.',
+            ], 404);
+        }
+
+        if ((int) $post->user_id !== (int) $user->id) {
+            return response()->json([
+                'message' => 'You can only delete your own posts.',
+            ], 403);
+        }
+
+        $post->delete();
+
+        return response()->json([
+            'message' => 'Post deleted.',
+        ]);
     }
 
     /**
      * @return array<string, mixed>
      */
-    private function formatPost(CommunityPost $post): array
+    private function formatPost(CommunityPost $post, User $viewer): array
     {
         return [
             'id' => $post->id,
+            'user_id' => $post->user_id,
             'author' => $post->author_name,
             'message' => $post->message,
             'image_base64' => $post->image_base64,
             'barangay' => $post->barangay,
             'is_official' => (bool) $post->is_official,
             'is_verified_resident' => !(bool) $post->is_official,
+            'can_manage' => (int) $post->user_id === (int) $viewer->id,
             'posted_at' => optional($post->created_at)?->toIso8601String(),
         ];
     }
