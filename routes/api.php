@@ -4,6 +4,7 @@ use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\Community\CommentController as CommunityCommentController;
 use App\Http\Controllers\Api\Community\PostController as CommunityPostController;
 use App\Http\Controllers\Api\Jobs\HiringPostController;
+use App\Http\Controllers\Api\Jobs\JobHunterProfileController;
 use App\Http\Controllers\Api\LocationController;
 use Illuminate\Support\Facades\Route;
 
@@ -27,4 +28,8 @@ Route::middleware('auth:api')->group(function (): void {
     Route::post('/community/posts/{postId}/comments', [CommunityCommentController::class, 'store']);
     Route::get('/jobs/hiring-posts', [HiringPostController::class, 'index']);
     Route::post('/jobs/hiring-posts', [HiringPostController::class, 'store']);
+    Route::get('/jobs/hunter-profiles', [JobHunterProfileController::class, 'index']);
+    Route::post('/jobs/hunter-profiles', [JobHunterProfileController::class, 'store']);
 });
+
+
