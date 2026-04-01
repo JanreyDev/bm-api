@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\Api\CommunityPostController;
 use App\Http\Controllers\Api\LocationController;
 use Illuminate\Support\Facades\Route;
 
@@ -15,4 +16,6 @@ Route::get('/locations/directory', [LocationController::class, 'index']);
 Route::middleware('auth:api')->group(function (): void {
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::post('/activation/complete', [AuthController::class, 'completeActivation']);
+    Route::get('/community/posts', [CommunityPostController::class, 'index']);
+    Route::post('/community/posts', [CommunityPostController::class, 'store']);
 });
