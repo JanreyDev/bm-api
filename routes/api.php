@@ -22,5 +22,6 @@ Route::middleware('auth:api')->group(function (): void {
     Route::get('/community/posts/{postId}', [CommunityPostController::class, 'show']);
     Route::patch('/community/posts/{postId}', [CommunityPostController::class, 'update']);
     Route::delete('/community/posts/{postId}', [CommunityPostController::class, 'destroy']);
+    Route::post('/community/posts/{postId}/likes/toggle', [CommunityPostController::class, 'toggleLike']);
     Route::post('/community/posts/{postId}/comments', [CommunityCommentController::class, 'store']);
 });

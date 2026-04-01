@@ -57,6 +57,10 @@ class CommunityPostService
         return CommunityPost::query()
             ->inBarangay($barangay)
             ->withCount('comments')
+            ->withCount('likes')
+            ->withCount([
+                'likes as liked_by_me_count' => fn ($builder) => $builder->where('user_id', $viewer->id),
+            ])
             ->latest()
             ->limit(120)
             ->get();
@@ -80,9 +84,13 @@ class CommunityPostService
             $query->with([
                 'comments' => fn ($builder) => $builder->latest(),
             ]);
-        } else {
-            $query->withCount('comments');
         }
+
+        $query->withCount('comments')
+            ->withCount('likes')
+            ->withCount([
+                'likes as liked_by_me_count' => fn ($builder) => $builder->where('user_id', $viewer->id),
+            ]);
 
         return $query->first();
     }

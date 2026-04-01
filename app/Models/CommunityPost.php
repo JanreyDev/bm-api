@@ -44,6 +44,11 @@ class CommunityPost extends Model
         return $this->hasMany(CommunityPostComment::class, 'community_post_id');
     }
 
+    public function likes(): HasMany
+    {
+        return $this->hasMany(CommunityPostLike::class, 'community_post_id');
+    }
+
     public function scopeInBarangay(Builder $query, string $barangay): Builder
     {
         return $query->where('barangay', trim($barangay));

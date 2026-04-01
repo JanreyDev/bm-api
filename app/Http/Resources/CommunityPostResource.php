@@ -22,6 +22,8 @@ class CommunityPostResource extends JsonResource
     public function toArray(Request $request): array
     {
         $commentsCount = (int) ($this->comments_count ?? $this->comments()->count());
+        $likesCount = (int) ($this->likes_count ?? $this->likes()->count());
+        $likedByMe = (int) ($this->liked_by_me_count ?? 0) > 0;
         /** @var CommunityPostComment|null $latestComment */
         $latestComment = $this->relationLoaded('comments')
             ? $this->comments->sortByDesc('created_at')->first()
@@ -39,6 +41,8 @@ class CommunityPostResource extends JsonResource
             'can_manage' => $this->viewer !== null
                 ? (int) $this->user_id === (int) $this->viewer->id
                 : false,
+            'likes_count' => $likesCount,
+            'liked_by_me' => $likedByMe,
             'comments_count' => $commentsCount,
             'latest_comment' => $latestComment === null ? null : [
                 'id' => $latestComment->id,

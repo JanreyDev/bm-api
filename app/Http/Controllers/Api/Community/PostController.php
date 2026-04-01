@@ -7,6 +7,7 @@ use App\Http\Requests\Api\StoreCommunityPostRequest;
 use App\Http\Requests\Api\UpdateCommunityPostRequest;
 use App\Http\Resources\CommunityPostResource;
 use App\Models\CommunityPost;
+use App\Models\CommunityPostLike;
 use App\Models\User;
 use App\Services\Community\CommunityPostService;
 use Illuminate\Http\JsonResponse;
@@ -176,6 +177,46 @@ class PostController extends Controller
 
         return response()->json([
             'message' => 'Post deleted.',
+        ]);
+    }
+
+    public function toggleLike(Request $request, int $postId): JsonResponse
+    {
+        $user = $this->authenticatedUserOrNull();
+        if ($user === null) {
+            return response()->json([
+                'message' => 'Unauthenticated.',
+            ], 401);
+        }
+
+        $post = $this->postService->findForViewer($postId, $user);
+        if ($post === null) {
+            return response()->json([
+                'message' => 'Post not found.',
+            ], 404);
+        }
+
+        $existing = CommunityPostLike::query()
+            ->where('community_post_id', $post->id)
+            ->where('user_id', $user->id)
+            ->first();
+
+        if ($existing !== null) {
+            $existing->delete();
+            $message = 'Like removed.';
+        } else {
+            CommunityPostLike::query()->create([
+                'community_post_id' => $post->id,
+                'user_id' => $user->id,
+            ]);
+            $message = 'Post liked.';
+        }
+
+        $fresh = $this->postService->findForViewer($post->id, $user, withComments: false);
+
+        return response()->json([
+            'message' => $message,
+            'post' => $fresh === null ? null : (new CommunityPostResource($fresh, $user))->toArray($request),
         ]);
     }
 
