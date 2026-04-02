@@ -38,6 +38,7 @@ class JobHunterProfileService
 
         return JobHunterProfile::query()
             ->inBarangay($barangay)
+            ->with('user:id,mobile')
             ->latest()
             ->limit(200)
             ->get();
