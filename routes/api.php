@@ -8,6 +8,7 @@ use App\Http\Controllers\Api\Jobs\JobApplicationController;
 use App\Http\Controllers\Api\Jobs\JobHunterProfileController;
 use App\Http\Controllers\Api\Jobs\JobHunterInvitationController;
 use App\Http\Controllers\Api\Jobs\SavedJobController;
+use App\Http\Controllers\Api\Market\MerchantRegistrationController;
 use App\Http\Controllers\Api\LocationController;
 use Illuminate\Support\Facades\Route;
 
@@ -39,4 +40,6 @@ Route::middleware('auth:api')->group(function (): void {
     Route::post('/jobs/applications', [JobApplicationController::class, 'store']);
     Route::get('/jobs/saved', [SavedJobController::class, 'index']);
     Route::post('/jobs/saved/toggle', [SavedJobController::class, 'toggle']);
+    Route::get('/market/merchant-registration', [MerchantRegistrationController::class, 'show']);
+    Route::post('/market/merchant-registration', [MerchantRegistrationController::class, 'store']);
 });
