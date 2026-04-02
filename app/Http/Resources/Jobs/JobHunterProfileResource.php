@@ -16,6 +16,7 @@ class JobHunterProfileResource extends JsonResource
     {
         return [
             'id' => $this->id,
+            'user_id' => $this->user_id,
             'full_name' => $this->full_name,
             'mobile' => optional($this->user)->mobile,
             'desired_job' => $this->desired_job,

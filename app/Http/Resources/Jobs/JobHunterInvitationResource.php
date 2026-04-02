@@ -16,6 +16,9 @@ class JobHunterInvitationResource extends JsonResource
     {
         return [
             'id' => (string) $this->id,
+            'inviter_user_id' => $this->inviter_user_id,
+            'talent_user_id' => $this->talent_user_id,
+            'talent_profile_id' => $this->talent_profile_id,
             'talent_name' => $this->talent_name,
             'talent_mobile' => $this->talent_mobile,
             'talent_desired_job' => $this->talent_desired_job,
@@ -27,4 +30,3 @@ class JobHunterInvitationResource extends JsonResource
         ];
     }
 }
-

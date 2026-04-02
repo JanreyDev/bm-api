@@ -17,6 +17,8 @@ class StoreJobHunterInvitationRequest extends FormRequest
     public function rules(): array
     {
         return [
+            'talent_user_id' => ['nullable', 'integer', 'min:1'],
+            'talent_profile_id' => ['nullable', 'integer', 'min:1'],
             'talent_name' => ['required', 'string', 'min:2', 'max:180'],
             'talent_mobile' => ['nullable', 'string', 'max:40'],
             'talent_desired_job' => ['nullable', 'string', 'max:180'],
@@ -26,4 +28,3 @@ class StoreJobHunterInvitationRequest extends FormRequest
         ];
     }
 }
-

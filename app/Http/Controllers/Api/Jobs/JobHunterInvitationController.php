@@ -68,25 +68,43 @@ class JobHunterInvitationController extends Controller
         $talentName = trim((string) $validated['talent_name']);
         $talentMobile = trim((string) ($validated['talent_mobile'] ?? ''));
         $talentDesiredJob = trim((string) ($validated['talent_desired_job'] ?? ''));
+        $talentUserId = isset($validated['talent_user_id']) ? (int) $validated['talent_user_id'] : null;
+        $talentProfileId = isset($validated['talent_profile_id']) ? (int) $validated['talent_profile_id'] : null;
 
         $talentUser = null;
+        if ($talentUserId !== null && $talentUserId > 0) {
+            $talentUser = User::query()->find($talentUserId);
+        }
         if ($talentMobile !== '') {
             $talentUser = User::query()
                 ->where('mobile', $talentMobile)
                 ->first();
         }
         $talentProfile = null;
-        if ($talentUser !== null) {
+        if ($talentProfileId !== null && $talentProfileId > 0) {
+            $talentProfile = JobHunterProfile::query()
+                ->whereKey($talentProfileId)
+                ->inBarangay($barangay)
+                ->latest()
+                ->first();
+        }
+        if ($talentProfile !== null && $talentUser === null && $talentProfile->user_id !== null) {
+            $talentUser = User::query()->find($talentProfile->user_id);
+        }
+        if ($talentUser !== null && $talentProfile === null) {
             $talentProfile = JobHunterProfile::query()
                 ->where('user_id', $talentUser->id)
                 ->latest()
                 ->first();
-        } else {
+        } elseif ($talentProfile === null) {
             $talentProfile = JobHunterProfile::query()
                 ->where('full_name', $talentName)
                 ->inBarangay($barangay)
                 ->latest()
                 ->first();
+            if ($talentProfile !== null && $talentUser === null && $talentProfile->user_id !== null) {
+                $talentUser = User::query()->find($talentProfile->user_id);
+            }
         }
 
         $invitation = JobHunterInvitation::query()->create([
@@ -115,4 +133,3 @@ class JobHunterInvitationController extends Controller
         return Auth::guard('api')->user();
     }
 }
-
