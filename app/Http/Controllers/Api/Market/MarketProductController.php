@@ -73,6 +73,10 @@ class MarketProductController extends Controller
         $validated = $request->validated();
         $category = trim((string) $validated['category']);
         $imageAsset = $this->resolveImageAsset($category);
+        $thumbnailBase64 = $this->normalizeImagePayload(
+            $validated['thumbnail_base64'] ?? null,
+            $validated['thumbnail_file_name'] ?? null,
+        );
 
         $product = MarketProduct::query()->create([
             'user_id' => $user->id,
@@ -93,6 +97,8 @@ class MarketProductController extends Controller
             'reviews' => 0,
             'rating' => 4.8,
             'image_asset' => $imageAsset,
+            'thumbnail_base64' => $thumbnailBase64,
+            'thumbnail_file_name' => $validated['thumbnail_file_name'] ?? null,
         ]);
 
         return response()->json([
@@ -114,6 +120,48 @@ class MarketProductController extends Controller
             return 'public/item-printer.jpg';
         }
         return 'public/item-laptop.jpg';
+    }
+
+    private function normalizeImagePayload(?string $payload, ?string $fileName = null): ?string
+    {
+        if ($payload === null) {
+            return null;
+        }
+
+        $trimmed = trim($payload);
+        if ($trimmed === '') {
+            return null;
+        }
+
+        if (preg_match('/^data:image\/[a-zA-Z0-9.+-]+;base64,/', $trimmed) === 1) {
+            return $trimmed;
+        }
+
+        if (base64_decode($trimmed, true) === false) {
+            return null;
+        }
+
+        return 'data:' . $this->imageMimeFromFileName($fileName) . ';base64,' . $trimmed;
+    }
+
+    private function imageMimeFromFileName(?string $fileName): string
+    {
+        if ($fileName === null) {
+            return 'image/jpeg';
+        }
+
+        $lower = mb_strtolower(trim($fileName));
+        if (str_ends_with($lower, '.png')) {
+            return 'image/png';
+        }
+        if (str_ends_with($lower, '.webp')) {
+            return 'image/webp';
+        }
+        if (str_ends_with($lower, '.gif')) {
+            return 'image/gif';
+        }
+
+        return 'image/jpeg';
     }
 
     private function authenticatedUserOrNull(): ?User

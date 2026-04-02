@@ -31,6 +31,8 @@ class MarketProductResource extends JsonResource
             'reviews' => $this->reviews,
             'rating' => (float) $this->rating,
             'image_asset' => $this->image_asset,
+            'thumbnail_url' => $this->thumbnail_base64,
+            'thumbnail_file_name' => $this->thumbnail_file_name,
             'posted_at' => optional($this->created_at)?->toIso8601String(),
         ];
     }

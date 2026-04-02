@@ -26,6 +26,8 @@ class StoreMarketProductRequest extends FormRequest
             'eta' => ['required', 'string', 'min:2', 'max:180'],
             'seller_zone' => ['nullable', 'string', 'max:80'],
             'seller_purok' => ['nullable', 'string', 'max:80'],
+            'thumbnail_base64' => ['nullable', 'string', 'max:5000000'],
+            'thumbnail_file_name' => ['nullable', 'string', 'max:255'],
         ];
     }
 }

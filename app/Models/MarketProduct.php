@@ -33,6 +33,8 @@ class MarketProduct extends Model
         'reviews',
         'rating',
         'image_asset',
+        'thumbnail_base64',
+        'thumbnail_file_name',
     ];
 
     /**
