@@ -4,6 +4,7 @@ use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\Community\CommentController as CommunityCommentController;
 use App\Http\Controllers\Api\Community\PostController as CommunityPostController;
 use App\Http\Controllers\Api\Jobs\HiringPostController;
+use App\Http\Controllers\Api\Jobs\JobApplicationController;
 use App\Http\Controllers\Api\Jobs\JobHunterProfileController;
 use App\Http\Controllers\Api\Jobs\JobHunterInvitationController;
 use App\Http\Controllers\Api\LocationController;
@@ -33,5 +34,6 @@ Route::middleware('auth:api')->group(function (): void {
     Route::post('/jobs/hunter-profiles', [JobHunterProfileController::class, 'store']);
     Route::get('/jobs/invitations', [JobHunterInvitationController::class, 'index']);
     Route::post('/jobs/invitations', [JobHunterInvitationController::class, 'store']);
+    Route::get('/jobs/applications', [JobApplicationController::class, 'index']);
+    Route::post('/jobs/applications', [JobApplicationController::class, 'store']);
 });
-
