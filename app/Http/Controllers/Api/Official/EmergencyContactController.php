@@ -152,7 +152,7 @@ class EmergencyContactController extends Controller
         ]);
     }
 
-    public function destroy(int $contactId): JsonResponse
+    public function destroy(Request $request, int $contactId): JsonResponse
     {
         $user = $this->authenticatedUserOrNull();
         if ($user === null) {
