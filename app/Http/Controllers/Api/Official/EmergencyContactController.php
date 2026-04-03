@@ -18,7 +18,7 @@ class EmergencyContactController extends Controller
             return response()->json(['message' => 'Unauthenticated.'], 401);
         }
 
-        [$province, $city, $barangay] = $this->scopeFromUser($user);
+        [$province, $city, $barangay] = $this->scopeFromUser($request, $user);
         if ($province === '' || $city === '' || $barangay === '') {
             return response()->json([
                 'message' => 'Set your province/city/barangay in profile before loading emergency contacts.',
@@ -67,7 +67,7 @@ class EmergencyContactController extends Controller
             'sort_order' => ['nullable', 'integer', 'min:0', 'max:99999'],
         ]);
 
-        [$province, $city, $barangay] = $this->scopeFromUser($user);
+        [$province, $city, $barangay] = $this->scopeFromUser($request, $user);
         if ($province === '' || $city === '' || $barangay === '') {
             return response()->json([
                 'message' => 'Set your province/city/barangay in profile before adding emergency contacts.',
@@ -124,7 +124,7 @@ class EmergencyContactController extends Controller
             return response()->json(['message' => 'Emergency contact not found.'], 404);
         }
 
-        [$province, $city, $barangay] = $this->scopeFromUser($user);
+        [$province, $city, $barangay] = $this->scopeFromUser($request, $user);
         if ($province !== $entry->province || $city !== $entry->city_municipality || $barangay !== $entry->barangay) {
             return response()->json(['message' => 'You can only edit contacts inside your barangay scope.'], 403);
         }
@@ -167,7 +167,7 @@ class EmergencyContactController extends Controller
             return response()->json(['message' => 'Emergency contact not found.'], 404);
         }
 
-        [$province, $city, $barangay] = $this->scopeFromUser($user);
+        [$province, $city, $barangay] = $this->scopeFromUser($request, $user);
         if ($province !== $entry->province || $city !== $entry->city_municipality || $barangay !== $entry->barangay) {
             return response()->json(['message' => 'You can only delete contacts inside your barangay scope.'], 403);
         }
@@ -186,13 +186,39 @@ class EmergencyContactController extends Controller
     /**
      * @return array{string,string,string}
      */
-    private function scopeFromUser(User $user): array
+    private function scopeFromUser(Request $request, User $user): array
     {
-        return [
-            trim((string) $user->province),
-            trim((string) $user->city_municipality),
-            trim((string) $user->barangay),
-        ];
+        $province = trim((string) $user->province);
+        $city = trim((string) $user->city_municipality);
+        $barangay = trim((string) $user->barangay);
+
+        if ($province === '') {
+            $province = trim((string) $request->input('province', $request->query('province', '')));
+        }
+        if ($city === '') {
+            $city = trim((string) $request->input('city_municipality', $request->query('city_municipality', '')));
+        }
+        if ($barangay === '') {
+            $barangay = trim((string) $request->input('barangay', $request->query('barangay', '')));
+        }
+
+        $updates = [];
+        if ($province !== '' && trim((string) $user->province) === '') {
+            $updates['province'] = mb_substr($province, 0, 100);
+        }
+        if ($city !== '' && trim((string) $user->city_municipality) === '') {
+            $updates['city_municipality'] = mb_substr($city, 0, 100);
+        }
+        if ($barangay !== '' && trim((string) $user->barangay) === '') {
+            $updates['barangay'] = mb_substr($barangay, 0, 100);
+        }
+        if ($updates !== []) {
+            $user->forceFill($updates)->save();
+            $province = trim((string) ($updates['province'] ?? $province));
+            $city = trim((string) ($updates['city_municipality'] ?? $city));
+            $barangay = trim((string) ($updates['barangay'] ?? $barangay));
+        }
+
+        return [$province, $city, $barangay];
     }
 }
-
