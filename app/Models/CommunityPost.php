@@ -51,7 +51,7 @@ class CommunityPost extends Model
 
     public function scopeInBarangay(Builder $query, string $barangay): Builder
     {
-        return $query->where('barangay', trim($barangay));
+        return $query->whereRaw('LOWER(TRIM(barangay)) = ?', [mb_strtolower(trim($barangay))]);
     }
 
     public function canManageBy(User $user): bool
