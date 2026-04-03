@@ -41,6 +41,15 @@ class AuthController extends Controller
 
         $mobile = $this->normalizeMobile((string) $request->string('mobile'));
         $role = (string) $request->string('role');
+        $province = trim((string) $request->string('province'));
+        $cityMunicipality = trim((string) $request->string('city_municipality'));
+        $barangay = trim((string) $request->string('barangay'));
+
+        if ($role === 'official' && ($province === '' || $cityMunicipality === '' || $barangay === '')) {
+            return response()->json([
+                'message' => 'Province, city/municipality, and barangay are required for official registration.',
+            ], 422);
+        }
         $existing = User::query()
             ->where('mobile', $mobile)
             ->where('role', $role)
@@ -61,9 +70,9 @@ class AuthController extends Controller
             'middle_name' => $request->filled('middle_name') ? trim((string) $request->string('middle_name')) : null,
             'suffix' => $request->filled('suffix') ? trim((string) $request->string('suffix')) : null,
             'religion' => $request->filled('religion') ? trim((string) $request->string('religion')) : null,
-            'province' => $request->filled('province') ? trim((string) $request->string('province')) : null,
-            'city_municipality' => $request->filled('city_municipality') ? trim((string) $request->string('city_municipality')) : null,
-            'barangay' => $request->filled('barangay') ? trim((string) $request->string('barangay')) : null,
+            'province' => $province !== '' ? $province : null,
+            'city_municipality' => $cityMunicipality !== '' ? $cityMunicipality : null,
+            'barangay' => $barangay !== '' ? $barangay : null,
             'activation_completed' => $role === 'resident',
             'otp_code' => $otp,
             'otp_expires_at' => now()->addMinutes(10),
