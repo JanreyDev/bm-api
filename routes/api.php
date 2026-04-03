@@ -14,6 +14,7 @@ use App\Http\Controllers\Api\Market\MarketProductController;
 use App\Http\Controllers\Api\Official\DashboardSummaryController;
 use App\Http\Controllers\Api\Official\EmergencyContactController;
 use App\Http\Controllers\Api\Official\RecentActivityController;
+use App\Http\Controllers\Api\Emergency\SharedLocationController;
 use App\Http\Controllers\Api\Profile\ResidentProfileController;
 use App\Http\Controllers\Api\Profile\ResidentRbiRecordController;
 use App\Http\Controllers\Api\Services\ServiceRequestController;
@@ -68,6 +69,8 @@ Route::middleware('auth:api')->group(function (): void {
     Route::post('/emergency/contacts', [EmergencyContactController::class, 'store']);
     Route::patch('/emergency/contacts/{contactId}', [EmergencyContactController::class, 'update']);
     Route::delete('/emergency/contacts/{contactId}', [EmergencyContactController::class, 'destroy']);
+    Route::get('/emergency/shared-location', [SharedLocationController::class, 'show']);
+    Route::post('/emergency/shared-location', [SharedLocationController::class, 'store']);
 });
 
 
