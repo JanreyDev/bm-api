@@ -22,8 +22,19 @@ class ServiceRequest extends Model
         'request_id',
         'purpose',
         'details',
+        'attachments_json',
         'status',
     ];
+
+    /**
+     * @return array<string, string>
+     */
+    protected function casts(): array
+    {
+        return [
+            'attachments_json' => 'array',
+        ];
+    }
 
     public function user(): BelongsTo
     {
@@ -35,4 +46,3 @@ class ServiceRequest extends Model
         return $query->where('barangay', trim($barangay));
     }
 }
-

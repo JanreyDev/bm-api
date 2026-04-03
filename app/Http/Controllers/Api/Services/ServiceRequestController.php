@@ -61,6 +61,7 @@ class ServiceRequestController extends Controller
         }
 
         $validated = $request->validated();
+        $attachments = $this->normalizeAttachments($validated['attachments'] ?? null);
         $entry = ServiceRequest::query()->create([
             'user_id' => $user->id,
             'barangay' => $barangay,
@@ -69,6 +70,7 @@ class ServiceRequestController extends Controller
             'request_id' => $this->makeRequestId((string) $validated['service_category']),
             'purpose' => trim((string) $validated['purpose']),
             'details' => trim((string) ($validated['details'] ?? '')),
+            'attachments_json' => $attachments,
             'status' => 'Pending',
         ]);
 
@@ -89,10 +91,40 @@ class ServiceRequestController extends Controller
         return sprintf('%s-%s-%03d', $prefix, $date, $random);
     }
 
+    /**
+     * @param mixed $raw
+     * @return array<int, array<string, string>>
+     */
+    private function normalizeAttachments(mixed $raw): array
+    {
+        if (!is_array($raw)) {
+            return [];
+        }
+        $out = [];
+        foreach ($raw as $item) {
+            if (!is_array($item)) {
+                continue;
+            }
+            $fileName = trim((string) ($item['file_name'] ?? ''));
+            $payload = trim((string) ($item['image_base64'] ?? ''));
+            if ($fileName === '' || $payload === '') {
+                continue;
+            }
+            if (preg_match('/^data:image\/[a-zA-Z0-9.+-]+;base64,/', $payload) !== 1 &&
+                base64_decode($payload, true) === false) {
+                continue;
+            }
+            $out[] = [
+                'file_name' => $fileName,
+                'image_base64' => $payload,
+            ];
+        }
+        return $out;
+    }
+
     private function authenticatedUserOrNull(): ?User
     {
         /** @var User|null $user */
         return Auth::guard('api')->user();
     }
 }
-

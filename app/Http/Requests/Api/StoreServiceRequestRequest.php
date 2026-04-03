@@ -21,7 +21,9 @@ class StoreServiceRequestRequest extends FormRequest
             'service_title' => ['required', 'string', 'min:2', 'max:180'],
             'purpose' => ['required', 'string', 'min:4', 'max:400'],
             'details' => ['nullable', 'string', 'max:3000'],
+            'attachments' => ['nullable', 'array', 'max:6'],
+            'attachments.*.file_name' => ['required_with:attachments', 'string', 'max:255'],
+            'attachments.*.image_base64' => ['required_with:attachments', 'string', 'max:5000000'],
         ];
     }
 }
-

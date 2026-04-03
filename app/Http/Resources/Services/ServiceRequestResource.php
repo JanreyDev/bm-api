@@ -14,6 +14,17 @@ class ServiceRequestResource extends JsonResource
      */
     public function toArray(Request $request): array
     {
+        $attachments = is_array($this->attachments_json) ? $this->attachments_json : [];
+        $attachmentNames = [];
+        foreach ($attachments as $item) {
+            if (!is_array($item)) {
+                continue;
+            }
+            $name = trim((string) ($item['file_name'] ?? ''));
+            if ($name !== '') {
+                $attachmentNames[] = $name;
+            }
+        }
         return [
             'id' => $this->id,
             'service_category' => $this->service_category,
@@ -21,9 +32,10 @@ class ServiceRequestResource extends JsonResource
             'request_id' => $this->request_id,
             'purpose' => $this->purpose,
             'details' => $this->details,
+            'attachment_names' => $attachmentNames,
+            'attachment_count' => count($attachmentNames),
             'status' => $this->status,
             'submitted_at' => optional($this->created_at)?->toIso8601String(),
         ];
     }
 }
-
