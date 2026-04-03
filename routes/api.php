@@ -54,6 +54,7 @@ Route::middleware('auth:api')->group(function (): void {
     Route::post('/market/products', [MarketProductController::class, 'store']);
     Route::get('/services/requests', [ServiceRequestController::class, 'index']);
     Route::post('/services/requests', [ServiceRequestController::class, 'store']);
+    Route::patch('/services/requests/{serviceRequestId}/status', [ServiceRequestController::class, 'updateStatus']);
     Route::get('/profile/resident', [ResidentProfileController::class, 'show']);
     Route::post('/profile/resident', [ResidentProfileController::class, 'upsert']);
     Route::get('/official/dashboard-summary', DashboardSummaryController::class);

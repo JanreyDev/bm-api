@@ -30,6 +30,8 @@ class ServiceRequestResource extends JsonResource
             'service_category' => $this->service_category,
             'service_title' => $this->service_title,
             'request_id' => $this->request_id,
+            'requester_name' => optional($this->user)->name,
+            'requester_mobile' => optional($this->user)->mobile,
             'purpose' => $this->purpose,
             'details' => $this->details,
             'attachment_names' => $attachmentNames,

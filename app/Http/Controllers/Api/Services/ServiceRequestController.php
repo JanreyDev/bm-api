@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\Services;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\StoreServiceRequestRequest;
+use App\Http\Requests\Api\UpdateServiceRequestStatusRequest;
 use App\Http\Resources\Services\ServiceRequestResource;
 use App\Models\ServiceRequest;
 use App\Models\User;
@@ -31,6 +32,7 @@ class ServiceRequestController extends Controller
 
         $requestsQuery = ServiceRequest::query()
             ->inBarangay($barangay)
+            ->with('user:id,name,mobile')
             ->latest()
             ->limit(500);
 
@@ -82,6 +84,53 @@ class ServiceRequestController extends Controller
             'message' => 'Service request submitted.',
             'request' => (new ServiceRequestResource($entry))->toArray($request),
         ], 201);
+    }
+
+    public function updateStatus(
+        UpdateServiceRequestStatusRequest $request,
+        int $serviceRequestId
+    ): JsonResponse {
+        $user = $this->authenticatedUserOrNull();
+        if ($user === null) {
+            return response()->json([
+                'message' => 'Unauthenticated.',
+            ], 401);
+        }
+
+        if ($user->role !== 'official') {
+            return response()->json([
+                'message' => 'Only official accounts can update service request status.',
+            ], 403);
+        }
+
+        $barangay = trim((string) $user->barangay);
+        if ($barangay === '') {
+            return response()->json([
+                'message' => 'Set your barangay in your profile before updating requests.',
+            ], 422);
+        }
+
+        $entry = ServiceRequest::query()
+            ->inBarangay($barangay)
+            ->whereKey($serviceRequestId)
+            ->with('user:id,name,mobile')
+            ->first();
+
+        if ($entry === null) {
+            return response()->json([
+                'message' => 'Service request not found.',
+            ], 404);
+        }
+
+        $validated = $request->validated();
+        $entry->forceFill([
+            'status' => trim((string) $validated['status']),
+        ])->save();
+
+        return response()->json([
+            'message' => 'Service request status updated.',
+            'request' => (new ServiceRequestResource($entry->fresh('user') ?? $entry))->toArray($request),
+        ]);
     }
 
     private function makeRequestId(string $category): string
