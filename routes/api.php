@@ -13,6 +13,7 @@ use App\Http\Controllers\Api\Market\MerchantRegistrationController;
 use App\Http\Controllers\Api\Market\MarketProductController;
 use App\Http\Controllers\Api\Official\DashboardSummaryController;
 use App\Http\Controllers\Api\Official\EmergencyContactController;
+use App\Http\Controllers\Api\Official\OfficialGovAgencyController;
 use App\Http\Controllers\Api\Official\RecentActivityController;
 use App\Http\Controllers\Api\Emergency\SharedLocationController;
 use App\Http\Controllers\Api\Profile\ResidentProfileController;
@@ -65,6 +66,7 @@ Route::middleware('auth:api')->group(function (): void {
     Route::patch('/rbi/records/{recordId}/verification', [ResidentRbiRecordController::class, 'updateVerificationStatus']);
     Route::get('/official/dashboard-summary', DashboardSummaryController::class);
     Route::get('/official/recent-activity', RecentActivityController::class);
+    Route::get('/official/gov-agencies', [OfficialGovAgencyController::class, 'index']);
     Route::get('/emergency/contacts', [EmergencyContactController::class, 'index']);
     Route::post('/emergency/contacts', [EmergencyContactController::class, 'store']);
     Route::patch('/emergency/contacts/{contactId}', [EmergencyContactController::class, 'update']);
