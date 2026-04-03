@@ -11,6 +11,51 @@ use Illuminate\Support\Facades\Auth;
 
 class SharedLocationController extends Controller
 {
+    public function index(Request $request): JsonResponse
+    {
+        $user = $this->authenticatedUserOrNull();
+        if ($user === null) {
+            return response()->json(['message' => 'Unauthenticated.'], 401);
+        }
+
+        [$province, $city, $barangay] = $this->scopeFromUser($request, $user);
+        if ($province === '' || $city === '' || $barangay === '') {
+            return response()->json([
+                'message' => 'Set your province/city/barangay before opening shared locations.',
+                'locations' => [],
+            ], 200);
+        }
+
+        $limit = (int) $request->integer('limit', 20);
+        $limit = max(1, min($limit, 100));
+
+        $query = EmergencySharedLocation::query()
+            ->where('province', $province)
+            ->where('city_municipality', $city)
+            ->where('barangay', $barangay)
+            ->with('user:id,name,mobile,role')
+            ->latest('shared_at');
+
+        if ($user->role !== 'official') {
+            $query->where('user_id', $user->id);
+        }
+
+        $rows = $query->limit($limit)->get();
+
+        return response()->json([
+            'message' => $rows->isNotEmpty
+                ? 'Shared locations loaded.'
+                : 'No shared locations yet.',
+            'locations' => $rows->map(function (EmergencySharedLocation $entry): array {
+                $payload = $this->serializeEntry($entry);
+                $payload['user_name'] = trim((string) optional($entry->user)->name);
+                $payload['user_mobile'] = trim((string) optional($entry->user)->mobile);
+                $payload['user_role'] = trim((string) optional($entry->user)->role);
+                return $payload;
+            })->values()->all(),
+        ]);
+    }
+
     public function show(Request $request): JsonResponse
     {
         $user = $this->authenticatedUserOrNull();
@@ -139,4 +184,3 @@ class SharedLocationController extends Controller
         return [$province, $city, $barangay];
     }
 }
-

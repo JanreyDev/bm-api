@@ -69,6 +69,7 @@ Route::middleware('auth:api')->group(function (): void {
     Route::post('/emergency/contacts', [EmergencyContactController::class, 'store']);
     Route::patch('/emergency/contacts/{contactId}', [EmergencyContactController::class, 'update']);
     Route::delete('/emergency/contacts/{contactId}', [EmergencyContactController::class, 'destroy']);
+    Route::get('/emergency/shared-locations', [SharedLocationController::class, 'index']);
     Route::get('/emergency/shared-location', [SharedLocationController::class, 'show']);
     Route::post('/emergency/shared-location', [SharedLocationController::class, 'store']);
 });
