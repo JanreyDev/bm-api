@@ -30,9 +30,9 @@ class SharedLocationController extends Controller
         $limit = max(1, min($limit, 100));
 
         $query = EmergencySharedLocation::query()
-            ->where('province', $province)
-            ->where('city_municipality', $city)
-            ->where('barangay', $barangay)
+            ->whereRaw('LOWER(TRIM(province)) = ?', [$this->normalizeScopeValue($province)])
+            ->whereRaw('LOWER(TRIM(city_municipality)) = ?', [$this->normalizeScopeValue($city)])
+            ->whereRaw('LOWER(TRIM(barangay)) = ?', [$this->normalizeScopeValue($barangay)])
             ->with('user:id,name,mobile,role')
             ->latest('shared_at');
 
@@ -73,9 +73,9 @@ class SharedLocationController extends Controller
 
         $entry = EmergencySharedLocation::query()
             ->where('user_id', $user->id)
-            ->where('province', $province)
-            ->where('city_municipality', $city)
-            ->where('barangay', $barangay)
+            ->whereRaw('LOWER(TRIM(province)) = ?', [$this->normalizeScopeValue($province)])
+            ->whereRaw('LOWER(TRIM(city_municipality)) = ?', [$this->normalizeScopeValue($city)])
+            ->whereRaw('LOWER(TRIM(barangay)) = ?', [$this->normalizeScopeValue($barangay)])
             ->latest('shared_at')
             ->first();
 
@@ -143,6 +143,11 @@ class SharedLocationController extends Controller
     {
         /** @var User|null $user */
         return Auth::guard('api')->user();
+    }
+
+    private function normalizeScopeValue(string $value): string
+    {
+        return mb_strtolower(trim(preg_replace('/\s+/', ' ', $value) ?? $value));
     }
 
     /**
