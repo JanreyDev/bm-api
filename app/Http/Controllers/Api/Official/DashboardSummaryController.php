@@ -48,6 +48,15 @@ class DashboardSummaryController extends Controller
 
         $population = max((int) $residentUsers, (int) $populationFromHousehold);
 
+        $verifiedRbiCount = ResidentProfile::query()
+            ->whereHas('user', static function ($query) use ($barangay): void {
+                $query
+                    ->where('role', 'resident')
+                    ->where('barangay', $barangay);
+            })
+            ->where('is_verified', true)
+            ->count();
+
         $totalRequests = ServiceRequest::query()
             ->inBarangay($barangay)
             ->count();
@@ -73,6 +82,8 @@ class DashboardSummaryController extends Controller
                 'barangay' => $barangay,
                 'population' => $population,
                 'registered_residents' => (int) $residentUsers,
+                'rbi_count' => (int) $verifiedRbiCount,
+                'verified_rbi_count' => (int) $verifiedRbiCount,
                 'population_from_household_size' => (int) $populationFromHousehold,
                 'requests_total' => (int) $totalRequests,
                 'total_requests' => (int) $totalRequests,
