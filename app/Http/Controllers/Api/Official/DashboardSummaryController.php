@@ -25,6 +25,9 @@ class DashboardSummaryController extends Controller
 
         $barangay = trim((string) $user->barangay);
         if ($barangay === '') {
+            $barangay = trim((string) $request->query('barangay', ''));
+        }
+        if ($barangay === '') {
             return response()->json([
                 'message' => 'Set your barangay in your profile before opening dashboard summary.',
             ], 422);
@@ -72,10 +75,15 @@ class DashboardSummaryController extends Controller
                 'registered_residents' => (int) $residentUsers,
                 'population_from_household_size' => (int) $populationFromHousehold,
                 'requests_total' => (int) $totalRequests,
+                'total_requests' => (int) $totalRequests,
                 'requests_pending' => (int) $pendingRequests,
+                'pending_requests' => (int) $pendingRequests,
                 'market_products_total' => (int) $totalProducts,
+                'market_products' => (int) $totalProducts,
                 'market_products_verified' => (int) $verifiedProducts,
+                'verified_market_products' => (int) $verifiedProducts,
                 'community_posts_total' => (int) $communityPosts,
+                'community_posts' => (int) $communityPosts,
             ],
             'population' => (int) $population,
         ]);
