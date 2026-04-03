@@ -38,6 +38,12 @@ class PostController extends Controller
 
         $barangay = $this->postService->resolveBarangayOrNull($user);
         if ($barangay === null) {
+            $fallbackBarangay = trim((string) $request->query('barangay', ''));
+            if ($fallbackBarangay !== '') {
+                $barangay = $fallbackBarangay;
+            }
+        }
+        if ($barangay === null) {
             return response()->json([
                 'message' => 'Set your barangay in your profile before opening the community feed.',
             ], 422);
@@ -70,6 +76,18 @@ class PostController extends Controller
         }
 
         $barangay = $this->postService->resolveBarangayOrNull($user);
+        if ($barangay === null) {
+            $fallbackBarangay = trim((string) $request->input('barangay', ''));
+            if ($fallbackBarangay === '') {
+                $fallbackBarangay = trim((string) $request->query('barangay', ''));
+            }
+            if ($fallbackBarangay !== '') {
+                $barangay = $fallbackBarangay;
+                if (trim((string) $user->barangay) === '') {
+                    $user->forceFill(['barangay' => $fallbackBarangay])->save();
+                }
+            }
+        }
         if ($barangay === null) {
             return response()->json([
                 'message' => 'Set your barangay in your profile before publishing posts.',
