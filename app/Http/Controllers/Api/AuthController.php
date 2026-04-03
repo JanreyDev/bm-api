@@ -44,12 +44,6 @@ class AuthController extends Controller
         $province = trim((string) $request->string('province'));
         $cityMunicipality = trim((string) $request->string('city_municipality'));
         $barangay = trim((string) $request->string('barangay'));
-
-        if ($role === 'official' && ($province === '' || $cityMunicipality === '' || $barangay === '')) {
-            return response()->json([
-                'message' => 'Province, city/municipality, and barangay are required for official registration.',
-            ], 422);
-        }
         $existing = User::query()
             ->where('mobile', $mobile)
             ->where('role', $role)
