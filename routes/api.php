@@ -60,6 +60,7 @@ Route::middleware('auth:api')->group(function (): void {
     Route::post('/profile/resident', [ResidentProfileController::class, 'upsert']);
     Route::get('/rbi/records', [ResidentRbiRecordController::class, 'index']);
     Route::post('/rbi/records', [ResidentRbiRecordController::class, 'upsert']);
+    Route::patch('/rbi/records/{recordId}/verification', [ResidentRbiRecordController::class, 'updateVerificationStatus']);
     Route::get('/official/dashboard-summary', DashboardSummaryController::class);
     Route::get('/official/recent-activity', RecentActivityController::class);
 });

@@ -147,6 +147,51 @@ class ResidentRbiRecordController extends Controller
         ]);
     }
 
+    public function updateVerificationStatus(Request $request, int $recordId): JsonResponse
+    {
+        $user = $this->authenticatedUserOrNull();
+        if ($user === null) {
+            return response()->json([
+                'message' => 'Unauthenticated.',
+            ], 401);
+        }
+
+        if ($user->role !== 'official') {
+            return response()->json([
+                'message' => 'Only official accounts can update RBI verification.',
+            ], 403);
+        }
+
+        $validated = $request->validate([
+            'verified' => ['required', 'boolean'],
+        ]);
+
+        $record = ResidentRbiRecord::query()->with('user')->find($recordId);
+        if ($record === null) {
+            return response()->json([
+                'message' => 'RBI record not found.',
+            ], 404);
+        }
+
+        $officialBarangay = trim((string) $user->barangay);
+        if ($officialBarangay !== '' && trim((string) $record->barangay) !== $officialBarangay) {
+            return response()->json([
+                'message' => 'You can only verify records inside your barangay.',
+            ], 403);
+        }
+
+        $verified = (bool) $validated['verified'];
+        $record->forceFill([
+            'verification_step' => $verified ? 2 : 1,
+            'verified_at' => $verified ? now() : null,
+        ])->save();
+
+        return response()->json([
+            'message' => $verified ? 'RBI record marked as verified.' : 'RBI record marked as unverified.',
+            'record' => (new ResidentRbiRecordResource($record->fresh(['user'])))->toArray($request),
+        ]);
+    }
+
     private function authenticatedUserOrNull(): ?User
     {
         /** @var User|null $user */
@@ -167,4 +212,3 @@ class ResidentRbiRecordController extends Controller
         return $barangay;
     }
 }
-
