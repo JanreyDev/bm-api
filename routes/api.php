@@ -12,6 +12,7 @@ use App\Http\Controllers\Api\Jobs\SavedJobController;
 use App\Http\Controllers\Api\Market\MerchantRegistrationController;
 use App\Http\Controllers\Api\Market\MarketProductController;
 use App\Http\Controllers\Api\Official\DashboardSummaryController;
+use App\Http\Controllers\Api\Official\RecentActivityController;
 use App\Http\Controllers\Api\Profile\ResidentProfileController;
 use App\Http\Controllers\Api\Services\ServiceRequestController;
 use App\Http\Controllers\Api\LocationController;
@@ -56,6 +57,7 @@ Route::middleware('auth:api')->group(function (): void {
     Route::get('/profile/resident', [ResidentProfileController::class, 'show']);
     Route::post('/profile/resident', [ResidentProfileController::class, 'upsert']);
     Route::get('/official/dashboard-summary', DashboardSummaryController::class);
+    Route::get('/official/recent-activity', RecentActivityController::class);
 });
 
 
