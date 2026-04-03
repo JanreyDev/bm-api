@@ -29,12 +29,16 @@ class ServiceRequestController extends Controller
             ], 422);
         }
 
-        $requests = ServiceRequest::query()
+        $requestsQuery = ServiceRequest::query()
             ->inBarangay($barangay)
-            ->where('user_id', $user->id)
             ->latest()
-            ->limit(500)
-            ->get();
+            ->limit(500);
+
+        if ($user->role !== 'official') {
+            $requestsQuery->where('user_id', $user->id);
+        }
+
+        $requests = $requestsQuery->get();
 
         return response()->json([
             'message' => 'Service requests loaded.',
