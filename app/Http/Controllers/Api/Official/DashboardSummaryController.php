@@ -23,10 +23,13 @@ class DashboardSummaryController extends Controller
             ], 401);
         }
 
-        $barangay = trim((string) $user->barangay);
-        if ($barangay === '') {
-            $barangay = trim((string) $request->query('barangay', ''));
+        if ($user->role !== 'official') {
+            return response()->json([
+                'message' => 'Only official accounts can access dashboard summary.',
+            ], 403);
         }
+
+        $barangay = $this->resolveBarangay($request, $user);
         if ($barangay === '') {
             return response()->json([
                 'message' => 'Set your barangay in your profile before opening dashboard summary.',
@@ -104,5 +107,19 @@ class DashboardSummaryController extends Controller
     {
         /** @var User|null $user */
         return Auth::guard('api')->user();
+    }
+
+    private function resolveBarangay(Request $request, User $user): string
+    {
+        $barangay = trim((string) $user->barangay);
+        if ($barangay === '') {
+            $fallback = trim((string) $request->query('barangay', ''));
+            if ($fallback !== '') {
+                $barangay = mb_substr($fallback, 0, 191);
+                $user->forceFill(['barangay' => $barangay])->save();
+            }
+        }
+
+        return $barangay;
     }
 }

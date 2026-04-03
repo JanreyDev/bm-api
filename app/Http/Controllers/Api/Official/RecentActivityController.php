@@ -14,6 +14,9 @@ use Illuminate\Support\Facades\Auth;
 
 class RecentActivityController extends Controller
 {
+    private const DEFAULT_LIMIT = 10;
+    private const MAX_LIMIT = 20;
+
     public function __invoke(Request $request): JsonResponse
     {
         $user = $this->authenticatedUserOrNull();
@@ -23,15 +26,25 @@ class RecentActivityController extends Controller
             ], 401);
         }
 
-        $barangay = trim((string) $user->barangay);
-        if ($barangay === '') {
-            $barangay = trim((string) $request->query('barangay', ''));
+        if ($user->role !== 'official') {
+            return response()->json([
+                'message' => 'Only official accounts can access recent activity.',
+            ], 403);
         }
+
+        $validated = $request->validate([
+            'barangay' => ['nullable', 'string', 'max:191'],
+            'limit' => ['nullable', 'integer', 'min:1', 'max:' . self::MAX_LIMIT],
+        ]);
+
+        $barangay = $this->resolveBarangay($validated, $user);
         if ($barangay === '') {
             return response()->json([
                 'message' => 'Set your barangay in your profile before opening recent activity.',
             ], 422);
         }
+
+        $limit = (int) ($validated['limit'] ?? self::DEFAULT_LIMIT);
 
         $requestEvents = ServiceRequest::query()
             ->inBarangay($barangay)
@@ -95,7 +108,7 @@ class RecentActivityController extends Controller
             ->filter(static fn (array $entry): bool => !empty($entry['timestamp']))
             ->sortByDesc(static fn (array $entry): string => (string) $entry['timestamp'])
             ->values()
-            ->take(10)
+            ->take($limit)
             ->all();
 
         return response()->json([
@@ -110,5 +123,21 @@ class RecentActivityController extends Controller
         /** @var User|null $user */
         return Auth::guard('api')->user();
     }
-}
 
+    /**
+     * @param array<string, mixed> $validated
+     */
+    private function resolveBarangay(array $validated, User $user): string
+    {
+        $barangay = trim((string) $user->barangay);
+        if ($barangay === '') {
+            $fallback = trim((string) ($validated['barangay'] ?? ''));
+            if ($fallback !== '') {
+                $barangay = mb_substr($fallback, 0, 191);
+                $user->forceFill(['barangay' => $barangay])->save();
+            }
+        }
+
+        return $barangay;
+    }
+}
