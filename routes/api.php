@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\Community\CommentController as CommunityCommentController;
+use App\Http\Controllers\Api\Community\CommunityChatMessageController;
 use App\Http\Controllers\Api\Community\PostController as CommunityPostController;
 use App\Http\Controllers\Api\Jobs\HiringPostController;
 use App\Http\Controllers\Api\Jobs\JobApplicationController;
@@ -33,6 +34,8 @@ Route::middleware('auth:api')->group(function (): void {
     Route::delete('/community/posts/{postId}', [CommunityPostController::class, 'destroy']);
     Route::post('/community/posts/{postId}/likes/toggle', [CommunityPostController::class, 'toggleLike']);
     Route::post('/community/posts/{postId}/comments', [CommunityCommentController::class, 'store']);
+    Route::get('/community/chat/messages', [CommunityChatMessageController::class, 'index']);
+    Route::post('/community/chat/messages', [CommunityChatMessageController::class, 'store']);
     Route::get('/jobs/hiring-posts', [HiringPostController::class, 'index']);
     Route::post('/jobs/hiring-posts', [HiringPostController::class, 'store']);
     Route::get('/jobs/hunter-profiles', [JobHunterProfileController::class, 'index']);
