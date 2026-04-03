@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\CommunityPost;
 use App\Models\MarketProduct;
 use App\Models\ResidentProfile;
+use App\Models\ResidentRbiRecord;
 use App\Models\ServiceRequest;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
@@ -51,7 +52,13 @@ class DashboardSummaryController extends Controller
 
         $population = max((int) $residentUsers, (int) $populationFromHousehold);
 
-        $verifiedRbiCount = ResidentProfile::query()
+        $verifiedRbiCount = ResidentRbiRecord::query()
+            ->where('barangay', $barangay)
+            ->where('verification_step', '>=', 2)
+            ->count();
+
+        if ($verifiedRbiCount === 0) {
+            $verifiedRbiCount = ResidentProfile::query()
             ->whereHas('user', static function ($query) use ($barangay): void {
                 $query
                     ->where('role', 'resident')
@@ -59,6 +66,7 @@ class DashboardSummaryController extends Controller
             })
             ->where('is_verified', true)
             ->count();
+        }
 
         $totalRequests = ServiceRequest::query()
             ->inBarangay($barangay)
