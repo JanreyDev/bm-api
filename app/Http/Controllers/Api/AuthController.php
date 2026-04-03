@@ -278,7 +278,24 @@ class AuthController extends Controller
             ], 403);
         }
 
-        $user->forceFill(['activation_completed' => true])->save();
+        $province = trim((string) $request->input('province', ''));
+        $cityMunicipality = trim((string) $request->input('city_municipality', ''));
+        $barangay = trim((string) $request->input('barangay', ''));
+
+        $updates = [
+            'activation_completed' => true,
+        ];
+        if ($province !== '') {
+            $updates['province'] = $province;
+        }
+        if ($cityMunicipality !== '') {
+            $updates['city_municipality'] = $cityMunicipality;
+        }
+        if ($barangay !== '') {
+            $updates['barangay'] = $barangay;
+        }
+
+        $user->forceFill($updates)->save();
 
         return response()->json([
             'message' => 'Activation details saved.',
