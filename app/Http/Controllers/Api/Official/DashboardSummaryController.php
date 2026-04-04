@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api\Official;
 use App\Http\Controllers\Controller;
 use App\Models\CommunityPost;
 use App\Models\MarketProduct;
+use App\Models\MerchantRegistration;
 use App\Models\OfficialBarangaySetup;
 use App\Models\ResidentProfile;
 use App\Models\ResidentRbiRecord;
@@ -111,6 +112,11 @@ class DashboardSummaryController extends Controller
         $communityPosts = CommunityPost::query()
             ->inBarangay($barangay)
             ->count();
+        
+        $verifiedMerchants = MerchantRegistration::query()
+            ->inBarangay($barangay)
+            ->where('merchant_verified', true)
+            ->count();
 
         return response()->json([
             'message' => 'Official dashboard summary loaded.',
@@ -133,6 +139,8 @@ class DashboardSummaryController extends Controller
                 'market_products' => (int) $totalProducts,
                 'market_products_verified' => (int) $verifiedProducts,
                 'verified_market_products' => (int) $verifiedProducts,
+                'verified_merchants' => (int) $verifiedMerchants,
+                'merchant_verified_count' => (int) $verifiedMerchants,
                 'community_posts_total' => (int) $communityPosts,
                 'community_posts' => (int) $communityPosts,
             ],
