@@ -43,7 +43,7 @@ class SharedLocationController extends Controller
         $rows = $query->limit($limit)->get();
 
         return response()->json([
-            'message' => $rows->isNotEmpty
+            'message' => $rows->isNotEmpty()
                 ? 'Shared locations loaded.'
                 : 'No shared locations yet.',
             'locations' => $rows->map(function (EmergencySharedLocation $entry): array {
