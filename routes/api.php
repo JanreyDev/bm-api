@@ -18,6 +18,7 @@ use App\Http\Controllers\Api\Official\OfficialGovAgencyController;
 use App\Http\Controllers\Api\Official\OfficialNotificationController;
 use App\Http\Controllers\Api\Official\OfficialTransactionHistoryController;
 use App\Http\Controllers\Api\Official\RecentActivityController;
+use App\Http\Controllers\Api\Official\OfficialMerchantRegistrationController;
 use App\Http\Controllers\Api\Emergency\SharedLocationController;
 use App\Http\Controllers\Api\Profile\ResidentProfileController;
 use App\Http\Controllers\Api\Profile\ResidentRbiRecordController;
@@ -78,6 +79,8 @@ Route::middleware('auth:api')->group(function (): void {
     Route::post('/official/gov-agencies', [OfficialGovAgencyController::class, 'store']);
     Route::patch('/official/gov-agencies/{agencyId}', [OfficialGovAgencyController::class, 'update']);
     Route::delete('/official/gov-agencies/{agencyId}', [OfficialGovAgencyController::class, 'destroy']);
+    Route::get('/official/merchant-registrations', [OfficialMerchantRegistrationController::class, 'index']);
+    Route::patch('/official/merchant-registrations/{id}/verify', [OfficialMerchantRegistrationController::class, 'verify']);
     Route::get('/official/notifications', [OfficialNotificationController::class, 'index']);
     Route::patch('/official/notifications/{notificationId}/read', [OfficialNotificationController::class, 'markRead']);
     Route::patch('/official/notifications/read-all', [OfficialNotificationController::class, 'markAllRead']);
