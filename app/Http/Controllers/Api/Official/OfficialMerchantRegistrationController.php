@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\Official;
 
 use App\Http\Controllers\Controller;
 use App\Models\MerchantRegistration;
+use App\Models\MarketProduct;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -67,6 +68,12 @@ class OfficialMerchantRegistrationController extends Controller
             'merchant_verified' => $verified,
             'verification_status' => $verified ? 'Verified' : 'Rejected',
         ]);
+
+        if ($verified) {
+            MarketProduct::query()
+                ->where('merchant_registration_id', $registration->id)
+                ->update(['verified' => true]);
+        }
 
         return response()->json([
             'message' => $verified ? 'Merchant verified.' : 'Merchant status updated.',

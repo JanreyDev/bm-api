@@ -107,7 +107,14 @@ class DashboardSummaryController extends Controller
             ->inBarangay($barangay);
 
         $totalProducts = (clone $products)->count();
-        $verifiedProducts = (clone $products)->where('verified', true)->count();
+        $verifiedProducts = (clone $products)
+            ->where(function($query) {
+                $query->where('verified', true)
+                    ->orWhereHas('registration', function($q) {
+                        $q->where('merchant_verified', true);
+                    });
+            })
+            ->count();
 
         $communityPosts = CommunityPost::query()
             ->inBarangay($barangay)
