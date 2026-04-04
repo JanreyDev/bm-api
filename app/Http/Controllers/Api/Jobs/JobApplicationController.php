@@ -11,6 +11,7 @@ use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Schema;
 
 class JobApplicationController extends Controller
 {
@@ -81,7 +82,7 @@ class JobApplicationController extends Controller
                 ->first();
         }
 
-        $application = JobApplication::query()->create([
+        $payload = [
             'job_hiring_post_id' => $jobPost?->id,
             'applicant_user_id' => $user->id,
             'barangay' => $barangay,
@@ -93,7 +94,11 @@ class JobApplicationController extends Controller
             'cover_letter' => trim((string) $validated['cover_letter']),
             'attachment_name' => trim((string) ($validated['attachment_name'] ?? '')),
             'status' => 'Submitted',
-        ]);
+        ];
+        if (Schema::hasColumn('job_applications', 'attachment_base64')) {
+            $payload['attachment_base64'] = $this->normalizeAttachmentPayload($validated['attachment_base64'] ?? null);
+        }
+        $application = JobApplication::query()->create($payload);
 
         return response()->json([
             'message' => 'Application submitted.',
@@ -105,5 +110,20 @@ class JobApplicationController extends Controller
     {
         /** @var User|null $user */
         return Auth::guard('api')->user();
+    }
+
+    private function normalizeAttachmentPayload(mixed $raw): ?string
+    {
+        $payload = trim((string) $raw);
+        if ($payload === '') {
+            return null;
+        }
+        if (preg_match('/^data:[^;]+;base64,/', $payload) === 1) {
+            return $payload;
+        }
+        if (base64_decode($payload, true) === false) {
+            return null;
+        }
+        return $payload;
     }
 }

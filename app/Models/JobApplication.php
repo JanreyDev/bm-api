@@ -25,6 +25,7 @@ class JobApplication extends Model
         'mobile_number',
         'cover_letter',
         'attachment_name',
+        'attachment_base64',
         'status',
     ];
 

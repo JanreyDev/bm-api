@@ -25,6 +25,7 @@ class StoreJobApplicationRequest extends FormRequest
             'mobile_number' => ['required', 'string', 'min:7', 'max:40'],
             'cover_letter' => ['required', 'string', 'min:2', 'max:3000'],
             'attachment_name' => ['nullable', 'string', 'max:255'],
+            'attachment_base64' => ['nullable', 'string', 'max:7000000'],
         ];
     }
 }

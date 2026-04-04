@@ -24,6 +24,7 @@ class JobApplicationResource extends JsonResource
             'mobile_number' => $this->mobile_number,
             'cover_letter' => $this->cover_letter,
             'attachment_name' => $this->attachment_name,
+            'attachment_base64' => $this->attachment_base64,
             'status' => $this->status,
             'submitted_at' => optional($this->created_at)?->toIso8601String(),
         ];
