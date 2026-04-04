@@ -9,6 +9,7 @@ use App\Models\ResidentProfile;
 use App\Models\ResidentRbiRecord;
 use App\Models\ServiceRequest;
 use App\Models\User;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -30,27 +31,40 @@ class DashboardSummaryController extends Controller
             ], 403);
         }
 
-        $barangay = $this->resolveBarangay($request, $user);
+        [$province, $city, $barangay] = $this->resolveScope($request, $user);
         if ($barangay === '') {
             return response()->json([
                 'message' => 'Set your barangay in your profile before opening dashboard summary.',
             ], 422);
         }
 
-        $residentUsers = User::query()
+        $municipalUsersQuery = User::query()
+            ->whereIn('role', ['resident', 'official'])
+            ->where(static function (Builder $query) use ($province, $city): void {
+                self::applyScopeFilter($query, 'province', $province);
+                self::applyScopeFilter($query, 'city_municipality', $city);
+            });
+        $residentUsers = (clone $municipalUsersQuery)
             ->where('role', 'resident')
-            ->where('barangay', $barangay)
+            ->count();
+        $officialUsers = (clone $municipalUsersQuery)
+            ->where('role', 'official')
+            ->count();
+        $registeredUsersTotal = (clone $municipalUsersQuery)
             ->count();
 
         $populationFromHousehold = ResidentProfile::query()
-            ->whereHas('user', static function ($query) use ($barangay): void {
+            ->whereHas('user', static function (Builder $query) use ($province, $city): void {
                 $query
                     ->where('role', 'resident')
-                    ->where('barangay', $barangay);
+                    ->where(static function (Builder $scope) use ($province, $city): void {
+                        self::applyScopeFilter($scope, 'province', $province);
+                        self::applyScopeFilter($scope, 'city_municipality', $city);
+                    });
             })
             ->sum('household_size');
 
-        $population = max((int) $residentUsers, (int) $populationFromHousehold);
+        $population = max((int) $registeredUsersTotal, (int) $populationFromHousehold);
 
         $verifiedRbiCount = ResidentRbiRecord::query()
             ->where('barangay', $barangay)
@@ -91,8 +105,12 @@ class DashboardSummaryController extends Controller
             'message' => 'Official dashboard summary loaded.',
             'summary' => [
                 'barangay' => $barangay,
+                'province' => $province,
+                'city_municipality' => $city,
                 'population' => $population,
                 'registered_residents' => (int) $residentUsers,
+                'registered_officials' => (int) $officialUsers,
+                'registered_users_total' => (int) $registeredUsersTotal,
                 'rbi_count' => (int) $verifiedRbiCount,
                 'verified_rbi_count' => (int) $verifiedRbiCount,
                 'population_from_household_size' => (int) $populationFromHousehold,
@@ -117,17 +135,47 @@ class DashboardSummaryController extends Controller
         return Auth::guard('api')->user();
     }
 
-    private function resolveBarangay(Request $request, User $user): string
+    /**
+     * @return array{string,string,string}
+     */
+    private function resolveScope(Request $request, User $user): array
     {
+        $province = trim((string) $user->province);
+        $city = trim((string) $user->city_municipality);
         $barangay = trim((string) $user->barangay);
+        $updates = [];
+        if ($province === '') {
+            $province = trim((string) $request->query('province', ''));
+            if ($province !== '') {
+                $updates['province'] = mb_substr($province, 0, 100);
+            }
+        }
+        if ($city === '') {
+            $city = trim((string) $request->query('city_municipality', ''));
+            if ($city !== '') {
+                $updates['city_municipality'] = mb_substr($city, 0, 100);
+            }
+        }
         if ($barangay === '') {
             $fallback = trim((string) $request->query('barangay', ''));
             if ($fallback !== '') {
                 $barangay = mb_substr($fallback, 0, 191);
-                $user->forceFill(['barangay' => $barangay])->save();
+                $updates['barangay'] = $barangay;
             }
         }
 
-        return $barangay;
+        if ($updates !== []) {
+            $user->forceFill($updates)->save();
+        }
+
+        return [$province, $city, $barangay];
+    }
+
+    private static function applyScopeFilter(Builder $query, string $column, string $value): void
+    {
+        $query->whereRaw(
+            sprintf('LOWER(TRIM(%s)) = ?', $column),
+            [mb_strtolower(trim($value))]
+        );
     }
 }
