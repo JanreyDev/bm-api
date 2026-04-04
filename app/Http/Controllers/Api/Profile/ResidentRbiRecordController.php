@@ -49,19 +49,12 @@ class ResidentRbiRecordController extends Controller
         }
         $search = trim((string) $request->query('q', ''));
 
-        $query = ResidentRbiRecord::query()
+        $baseQuery = ResidentRbiRecord::query()
             ->with('user')
             ->whereRaw('LOWER(TRIM(barangay)) = ?', [$this->normalizeScopeValue($barangay)]);
 
-        if ($city !== '') {
-            $query->whereRaw('LOWER(TRIM(city_municipality)) = ?', [$this->normalizeScopeValue($city)]);
-        }
-        if ($province !== '') {
-            $query->whereRaw('LOWER(TRIM(province)) = ?', [$this->normalizeScopeValue($province)]);
-        }
-
         if ($search !== '') {
-            $query->where(function ($builder) use ($search): void {
+            $baseQuery->where(function ($builder) use ($search): void {
                 $like = '%' . str_replace('%', '\\%', $search) . '%';
                 $builder
                     ->where('rbi_id', 'like', $like)
@@ -72,10 +65,36 @@ class ResidentRbiRecordController extends Controller
             });
         }
 
-        $records = $query
+        $records = (clone $baseQuery)
+            ->when($city !== '', fn ($query) => $query->whereRaw(
+                'LOWER(TRIM(city_municipality)) = ?',
+                [$this->normalizeScopeValue($city)]
+            ))
+            ->when($province !== '', fn ($query) => $query->whereRaw(
+                'LOWER(TRIM(province)) = ?',
+                [$this->normalizeScopeValue($province)]
+            ))
             ->latest()
             ->take(300)
             ->get();
+
+        if ($records->isEmpty() && $city !== '') {
+            $records = (clone $baseQuery)
+                ->when($province !== '', fn ($query) => $query->whereRaw(
+                    'LOWER(TRIM(province)) = ?',
+                    [$this->normalizeScopeValue($province)]
+                ))
+                ->latest()
+                ->take(300)
+                ->get();
+        }
+
+        if ($records->isEmpty() && $province !== '') {
+            $records = (clone $baseQuery)
+                ->latest()
+                ->take(300)
+                ->get();
+        }
 
         return response()->json([
             'message' => 'RBI records loaded.',
