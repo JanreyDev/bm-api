@@ -12,6 +12,7 @@ use App\Http\Controllers\Api\Jobs\SavedJobController;
 use App\Http\Controllers\Api\Market\MerchantRegistrationController;
 use App\Http\Controllers\Api\Market\MarketProductController;
 use App\Http\Controllers\Api\Official\DashboardSummaryController;
+use App\Http\Controllers\Api\Official\OfficialBarangaySetupController;
 use App\Http\Controllers\Api\Official\EmergencyContactController;
 use App\Http\Controllers\Api\Official\OfficialGovAgencyController;
 use App\Http\Controllers\Api\Official\OfficialNotificationController;
@@ -68,6 +69,9 @@ Route::middleware('auth:api')->group(function (): void {
     Route::post('/rbi/records', [ResidentRbiRecordController::class, 'upsert']);
     Route::patch('/rbi/records/{recordId}/verification', [ResidentRbiRecordController::class, 'updateVerificationStatus']);
     Route::get('/official/dashboard-summary', DashboardSummaryController::class);
+    Route::get('/barangay/branding', [OfficialBarangaySetupController::class, 'branding']);
+    Route::get('/official/barangay-setup', [OfficialBarangaySetupController::class, 'show']);
+    Route::post('/official/barangay-setup', [OfficialBarangaySetupController::class, 'upsert']);
     Route::get('/official/recent-activity', RecentActivityController::class);
     Route::get('/official/gov-agencies', [OfficialGovAgencyController::class, 'index']);
     Route::post('/official/gov-agencies', [OfficialGovAgencyController::class, 'store']);
