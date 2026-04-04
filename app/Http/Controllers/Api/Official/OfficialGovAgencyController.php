@@ -49,15 +49,120 @@ class OfficialGovAgencyController extends Controller
 
         return response()->json([
             'message' => $rows->isNotEmpty() ? 'Government agencies loaded.' : 'No government agencies available.',
-            'agencies' => $rows->map(static fn (OfficialGovAgency $entry): array => [
-                'id' => $entry->id,
-                'label' => trim((string) $entry->code),
-                'display_name' => trim((string) $entry->display_name),
-                'website' => trim((string) $entry->website),
-                'sort_order' => (int) $entry->sort_order,
-                'updated_at' => optional($entry->updated_at)?->toIso8601String(),
-            ])->values()->all(),
+            'agencies' => $rows->map(fn (OfficialGovAgency $entry): array => $this->serializeAgency($entry))->values()->all(),
         ]);
+    }
+
+    public function store(Request $request): JsonResponse
+    {
+        $user = $this->authenticatedUserOrNull();
+        if ($user === null) {
+            return response()->json(['message' => 'Unauthenticated.'], 401);
+        }
+        if ($user->role !== 'official') {
+            return response()->json(['message' => 'Only official accounts can manage agencies.'], 403);
+        }
+
+        $validated = $request->validate([
+            'label' => ['required', 'string', 'max:20'],
+            'display_name' => ['required', 'string', 'max:180'],
+            'website' => ['required', 'string', 'max:255'],
+            'sort_order' => ['nullable', 'integer', 'min:0', 'max:99999'],
+        ]);
+
+        [$province, $city, $barangay] = $this->scopeFromUser($request, $user);
+        if ($province === '' || $city === '' || $barangay === '') {
+            return response()->json([
+                'message' => 'Set your province/city/barangay before adding agencies.',
+            ], 422);
+        }
+
+        $entry = OfficialGovAgency::query()->create([
+            'created_by_user_id' => $user->id,
+            'province' => $province,
+            'city_municipality' => $city,
+            'barangay' => $barangay,
+            'code' => mb_substr(strtoupper(trim((string) $validated['label'])), 0, 20),
+            'display_name' => trim((string) $validated['display_name']),
+            'website' => trim((string) $validated['website']),
+            'sort_order' => (int) ($validated['sort_order'] ?? 0),
+            'is_active' => true,
+        ]);
+
+        return response()->json([
+            'message' => 'Agency added.',
+            'agency' => $this->serializeAgency($entry),
+        ], 201);
+    }
+
+    public function update(Request $request, int $agencyId): JsonResponse
+    {
+        $user = $this->authenticatedUserOrNull();
+        if ($user === null) {
+            return response()->json(['message' => 'Unauthenticated.'], 401);
+        }
+        if ($user->role !== 'official') {
+            return response()->json(['message' => 'Only official accounts can manage agencies.'], 403);
+        }
+
+        $validated = $request->validate([
+            'label' => ['required', 'string', 'max:20'],
+            'display_name' => ['required', 'string', 'max:180'],
+            'website' => ['required', 'string', 'max:255'],
+            'sort_order' => ['nullable', 'integer', 'min:0', 'max:99999'],
+        ]);
+
+        $entry = OfficialGovAgency::query()->find($agencyId);
+        if ($entry === null) {
+            return response()->json(['message' => 'Agency not found.'], 404);
+        }
+
+        [$province, $city, $barangay] = $this->scopeFromUser($request, $user);
+        if ($province !== trim((string) $entry->province) ||
+            $city !== trim((string) $entry->city_municipality) ||
+            $barangay !== trim((string) $entry->barangay)) {
+            return response()->json(['message' => 'You can only edit agencies inside your barangay scope.'], 403);
+        }
+
+        $entry->forceFill([
+            'code' => mb_substr(strtoupper(trim((string) $validated['label'])), 0, 20),
+            'display_name' => trim((string) $validated['display_name']),
+            'website' => trim((string) $validated['website']),
+            'sort_order' => (int) ($validated['sort_order'] ?? 0),
+            'is_active' => true,
+        ])->save();
+
+        return response()->json([
+            'message' => 'Agency updated.',
+            'agency' => $this->serializeAgency($entry),
+        ]);
+    }
+
+    public function destroy(Request $request, int $agencyId): JsonResponse
+    {
+        $user = $this->authenticatedUserOrNull();
+        if ($user === null) {
+            return response()->json(['message' => 'Unauthenticated.'], 401);
+        }
+        if ($user->role !== 'official') {
+            return response()->json(['message' => 'Only official accounts can manage agencies.'], 403);
+        }
+
+        $entry = OfficialGovAgency::query()->find($agencyId);
+        if ($entry === null) {
+            return response()->json(['message' => 'Agency not found.'], 404);
+        }
+
+        [$province, $city, $barangay] = $this->scopeFromUser($request, $user);
+        if ($province !== trim((string) $entry->province) ||
+            $city !== trim((string) $entry->city_municipality) ||
+            $barangay !== trim((string) $entry->barangay)) {
+            return response()->json(['message' => 'You can only delete agencies inside your barangay scope.'], 403);
+        }
+
+        $entry->forceFill(['is_active' => false])->save();
+
+        return response()->json(['message' => 'Agency deleted.']);
     }
 
     private function seedDefaultAgencies(string $province, string $city, string $barangay): void
@@ -99,6 +204,21 @@ class OfficialGovAgencyController extends Controller
     }
 
     /**
+     * @return array<string, mixed>
+     */
+    private function serializeAgency(OfficialGovAgency $entry): array
+    {
+        return [
+            'id' => $entry->id,
+            'label' => trim((string) $entry->code),
+            'display_name' => trim((string) $entry->display_name),
+            'website' => trim((string) $entry->website),
+            'sort_order' => (int) $entry->sort_order,
+            'updated_at' => optional($entry->updated_at)?->toIso8601String(),
+        ];
+    }
+
+    /**
      * @return array{string,string,string}
      */
     private function scopeFromUser(Request $request, User $user): array
@@ -137,4 +257,3 @@ class OfficialGovAgencyController extends Controller
         return [$province, $city, $barangay];
     }
 }
-

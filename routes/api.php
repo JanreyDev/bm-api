@@ -67,6 +67,9 @@ Route::middleware('auth:api')->group(function (): void {
     Route::get('/official/dashboard-summary', DashboardSummaryController::class);
     Route::get('/official/recent-activity', RecentActivityController::class);
     Route::get('/official/gov-agencies', [OfficialGovAgencyController::class, 'index']);
+    Route::post('/official/gov-agencies', [OfficialGovAgencyController::class, 'store']);
+    Route::patch('/official/gov-agencies/{agencyId}', [OfficialGovAgencyController::class, 'update']);
+    Route::delete('/official/gov-agencies/{agencyId}', [OfficialGovAgencyController::class, 'destroy']);
     Route::get('/emergency/contacts', [EmergencyContactController::class, 'index']);
     Route::post('/emergency/contacts', [EmergencyContactController::class, 'store']);
     Route::patch('/emergency/contacts/{contactId}', [EmergencyContactController::class, 'update']);
