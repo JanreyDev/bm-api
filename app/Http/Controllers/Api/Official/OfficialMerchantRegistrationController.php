@@ -23,10 +23,20 @@ class OfficialMerchantRegistrationController extends Controller
             return response()->json(['message' => 'Barangay not set.'], 422);
         }
 
-        $registrations = MerchantRegistration::query()
+        $query = MerchantRegistration::query()
             ->with('user:id,name,mobile')
-            ->where('barangay', $barangay)
-            ->orderBy('merchant_verified', 'asc')
+            ->where('barangay', $barangay);
+
+        if ($request->has('status')) {
+            $status = $request->input('status');
+            if ($status === 'pending') {
+                $query->where('merchant_verified', false);
+            } elseif ($status === 'verified') {
+                $query->where('merchant_verified', true);
+            }
+        }
+
+        $registrations = $query->orderBy('merchant_verified', 'asc')
             ->latest()
             ->get();
 
