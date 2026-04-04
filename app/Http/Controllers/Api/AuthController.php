@@ -53,6 +53,11 @@ class AuthController extends Controller
             ->first();
         if ($existing !== null) {
             if ($existing->otp_verified_at === null) {
+                PendingRegistration::query()
+                    ->where('mobile', $mobile)
+                    ->where('role', $role)
+                    ->delete();
+
                 $otp = $this->generateOtp();
                 $existing->forceFill([
                     'otp_code' => $otp,
@@ -172,6 +177,11 @@ class AuthController extends Controller
         }
 
         if ($user->otp_verified_at === null) {
+            PendingRegistration::query()
+                ->where('mobile', $mobile)
+                ->where('role', $role)
+                ->delete();
+
             $otp = $this->generateOtp();
             $user->forceFill([
                 'otp_code' => $otp,
@@ -227,65 +237,55 @@ class AuthController extends Controller
             ->first();
 
         if ($pending !== null) {
-            if (!hash_equals((string) $pending->otp_code, $otp)) {
+            $pendingOtpMatches = hash_equals((string) $pending->otp_code, $otp);
+            $pendingOtpExpired = $pending->otp_expires_at !== null && now()->greaterThan($pending->otp_expires_at);
+            if ($pendingOtpMatches && !$pendingOtpExpired) {
+                $payload = is_array($pending->payload) ? $pending->payload : [];
+                $user = DB::transaction(function () use ($mobile, $role, $payload): User {
+                    $user = User::query()
+                        ->where('mobile', $mobile)
+                        ->where('role', $role)
+                        ->first();
+
+                    $data = [
+                        'name' => (string) ($payload['name'] ?? ''),
+                        'email' => (string) ($payload['email'] ?? $this->buildSyntheticEmail($mobile, $role)),
+                        'mobile' => $mobile,
+                        'role' => $role,
+                        'middle_name' => $payload['middle_name'] ?? null,
+                        'suffix' => $payload['suffix'] ?? null,
+                        'religion' => $payload['religion'] ?? null,
+                        'province' => $payload['province'] ?? null,
+                        'city_municipality' => $payload['city_municipality'] ?? null,
+                        'barangay' => $payload['barangay'] ?? null,
+                        'activation_completed' => (bool) ($payload['activation_completed'] ?? ($role === 'resident')),
+                        'otp_verified_at' => now(),
+                        'otp_code' => null,
+                        'otp_expires_at' => null,
+                    ];
+
+                    $passwordHash = (string) ($payload['password_hash'] ?? '');
+                    if ($passwordHash !== '') {
+                        $data['password'] = $passwordHash;
+                    }
+
+                    if ($user === null) {
+                        return User::query()->create($data);
+                    }
+
+                    $user->forceFill($data)->save();
+                    return $user->fresh();
+                });
+
+                $pending->delete();
+                $token = $this->issueToken($user);
+
                 return response()->json([
-                    'message' => 'OTP verification failed.',
-                    'otp_required' => true,
-                ], 422);
+                    'message' => 'OTP verified successfully.',
+                    'token' => $token,
+                    'user' => $this->formatUser($user->fresh()),
+                ]);
             }
-
-            if ($pending->otp_expires_at !== null && now()->greaterThan($pending->otp_expires_at)) {
-                return response()->json([
-                    'message' => 'OTP has expired. Please request a new code.',
-                    'otp_required' => true,
-                ], 422);
-            }
-
-            $payload = is_array($pending->payload) ? $pending->payload : [];
-            $user = DB::transaction(function () use ($mobile, $role, $payload): User {
-                $user = User::query()
-                    ->where('mobile', $mobile)
-                    ->where('role', $role)
-                    ->first();
-
-                $data = [
-                    'name' => (string) ($payload['name'] ?? ''),
-                    'email' => (string) ($payload['email'] ?? $this->buildSyntheticEmail($mobile, $role)),
-                    'mobile' => $mobile,
-                    'role' => $role,
-                    'middle_name' => $payload['middle_name'] ?? null,
-                    'suffix' => $payload['suffix'] ?? null,
-                    'religion' => $payload['religion'] ?? null,
-                    'province' => $payload['province'] ?? null,
-                    'city_municipality' => $payload['city_municipality'] ?? null,
-                    'barangay' => $payload['barangay'] ?? null,
-                    'activation_completed' => (bool) ($payload['activation_completed'] ?? ($role === 'resident')),
-                    'otp_verified_at' => now(),
-                    'otp_code' => null,
-                    'otp_expires_at' => null,
-                ];
-
-                $passwordHash = (string) ($payload['password_hash'] ?? '');
-                if ($passwordHash !== '') {
-                    $data['password'] = $passwordHash;
-                }
-
-                if ($user === null) {
-                    return User::query()->create($data);
-                }
-
-                $user->forceFill($data)->save();
-                return $user->fresh();
-            });
-
-            $pending->delete();
-            $token = $this->issueToken($user);
-
-            return response()->json([
-                'message' => 'OTP verified successfully.',
-                'token' => $token,
-                'user' => $this->formatUser($user->fresh()),
-            ]);
         }
 
         $user = User::query()
