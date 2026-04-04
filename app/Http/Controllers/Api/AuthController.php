@@ -10,6 +10,8 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
 use Throwable;
@@ -300,6 +302,104 @@ class AuthController extends Controller
         return response()->json([
             'message' => 'Activation details saved.',
             'user' => $this->formatUser($user),
+        ]);
+    }
+
+    public function deleteAccount(Request $request): JsonResponse
+    {
+        /** @var User|null $user */
+        $user = Auth::guard('api')->user();
+        if ($user === null) {
+            return response()->json([
+                'message' => 'Unauthenticated.',
+            ], 401);
+        }
+
+        $validator = Validator::make($request->all(), [
+            'current_pin' => ['required', 'digits:6'],
+            'confirm_text' => ['required', 'string', 'in:DELETE'],
+        ]);
+        if ($validator->fails()) {
+            return response()->json([
+                'message' => $validator->errors()->first(),
+                'errors' => $validator->errors(),
+            ], 422);
+        }
+
+        $currentPin = trim((string) $request->input('current_pin'));
+        if (!Hash::check($currentPin, (string) $user->password)) {
+            return response()->json([
+                'message' => 'Current PIN is incorrect.',
+            ], 422);
+        }
+
+        $userId = (int) $user->id;
+        DB::transaction(function () use ($userId): void {
+            if (Schema::hasTable('official_notifications')) {
+                DB::table('official_notifications')
+                    ->where('source_user_id', $userId)
+                    ->orWhere('target_user_id', $userId)
+                    ->delete();
+            }
+            if (Schema::hasTable('official_gov_agencies')) {
+                DB::table('official_gov_agencies')->where('created_by_user_id', $userId)->delete();
+            }
+            if (Schema::hasTable('emergency_contacts')) {
+                DB::table('emergency_contacts')->where('created_by_user_id', $userId)->delete();
+            }
+            if (Schema::hasTable('community_post_likes')) {
+                DB::table('community_post_likes')->where('user_id', $userId)->delete();
+            }
+            if (Schema::hasTable('community_post_comments')) {
+                DB::table('community_post_comments')->where('user_id', $userId)->delete();
+            }
+            if (Schema::hasTable('community_posts')) {
+                DB::table('community_posts')->where('user_id', $userId)->delete();
+            }
+            if (Schema::hasTable('community_chat_messages')) {
+                DB::table('community_chat_messages')->where('user_id', $userId)->delete();
+            }
+            if (Schema::hasTable('saved_jobs')) {
+                DB::table('saved_jobs')->where('user_id', $userId)->delete();
+            }
+            if (Schema::hasTable('job_hunter_invitations')) {
+                DB::table('job_hunter_invitations')
+                    ->where('inviter_user_id', $userId)
+                    ->orWhere('talent_user_id', $userId)
+                    ->delete();
+            }
+            if (Schema::hasTable('job_hunter_profiles')) {
+                DB::table('job_hunter_profiles')->where('user_id', $userId)->delete();
+            }
+            if (Schema::hasTable('job_hiring_posts')) {
+                DB::table('job_hiring_posts')->where('user_id', $userId)->delete();
+            }
+            if (Schema::hasTable('job_applications')) {
+                DB::table('job_applications')->where('applicant_user_id', $userId)->delete();
+            }
+            if (Schema::hasTable('market_products')) {
+                DB::table('market_products')->where('user_id', $userId)->delete();
+            }
+            if (Schema::hasTable('merchant_registrations')) {
+                DB::table('merchant_registrations')->where('user_id', $userId)->delete();
+            }
+            if (Schema::hasTable('resident_profiles')) {
+                DB::table('resident_profiles')->where('user_id', $userId)->delete();
+            }
+            if (Schema::hasTable('resident_rbi_records')) {
+                DB::table('resident_rbi_records')->where('user_id', $userId)->delete();
+            }
+            if (Schema::hasTable('service_requests')) {
+                DB::table('service_requests')->where('user_id', $userId)->delete();
+            }
+            if (Schema::hasTable('emergency_shared_locations')) {
+                DB::table('emergency_shared_locations')->where('user_id', $userId)->delete();
+            }
+            DB::table('users')->where('id', $userId)->delete();
+        });
+
+        return response()->json([
+            'message' => 'Account deleted permanently.',
         ]);
     }
 
