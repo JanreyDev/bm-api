@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\PendingRegistration;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -51,45 +52,71 @@ class AuthController extends Controller
             ->where('role', $role)
             ->first();
         if ($existing !== null) {
+            if ($existing->otp_verified_at === null) {
+                $otp = $this->generateOtp();
+                $existing->forceFill([
+                    'otp_code' => $otp,
+                    'otp_expires_at' => now()->addMinutes(10),
+                ])->save();
+
+                if (!$this->sendOtpToMobile((string) $existing->mobile, $otp)) {
+                    return response()->json([
+                        'message' => 'Account exists but OTP SMS could not be sent. Please tap Resend OTP.',
+                        'otp_required' => true,
+                        'otp_debug_code' => $this->debugOtpCode($otp),
+                        'user' => $this->formatUser($existing),
+                    ], 503);
+                }
+
+                return response()->json([
+                    'message' => 'Account already exists and is pending OTP verification.',
+                    'otp_required' => true,
+                    'otp_debug_code' => $this->debugOtpCode($otp),
+                    'user' => $this->formatUser($existing),
+                ], 202);
+            }
             return response()->json([
                 'message' => 'An account with this mobile already exists for this role.',
             ], 422);
         }
 
         $otp = $this->generateOtp();
-        $user = User::query()->create([
-            'name' => trim((string) $request->string('name')),
-            'email' => $this->resolveRegistrationEmail($request, $mobile, $role),
-            'password' => Hash::make((string) $request->string('password')),
-            'mobile' => $mobile,
-            'role' => $role,
-            'middle_name' => $request->filled('middle_name') ? trim((string) $request->string('middle_name')) : null,
-            'suffix' => $request->filled('suffix') ? trim((string) $request->string('suffix')) : null,
-            'religion' => $request->filled('religion') ? trim((string) $request->string('religion')) : null,
-            'province' => $province !== '' ? $province : null,
-            'city_municipality' => $cityMunicipality !== '' ? $cityMunicipality : null,
-            'barangay' => $barangay !== '' ? $barangay : null,
-            'activation_completed' => $role === 'resident',
-            'otp_code' => $otp,
-            'otp_expires_at' => now()->addMinutes(10),
-            'otp_verified_at' => null,
-        ]);
+        PendingRegistration::query()->updateOrCreate(
+            [
+                'mobile' => $mobile,
+                'role' => $role,
+            ],
+            [
+                'otp_code' => $otp,
+                'otp_expires_at' => now()->addMinutes(10),
+                'payload' => [
+                    'name' => trim((string) $request->string('name')),
+                    'email' => $this->resolveRegistrationEmail($request, $mobile, $role),
+                    'password_hash' => Hash::make((string) $request->string('password')),
+                    'middle_name' => $request->filled('middle_name') ? trim((string) $request->string('middle_name')) : null,
+                    'suffix' => $request->filled('suffix') ? trim((string) $request->string('suffix')) : null,
+                    'religion' => $request->filled('religion') ? trim((string) $request->string('religion')) : null,
+                    'province' => $province !== '' ? $province : null,
+                    'city_municipality' => $cityMunicipality !== '' ? $cityMunicipality : null,
+                    'barangay' => $barangay !== '' ? $barangay : null,
+                    'activation_completed' => $role === 'resident',
+                ],
+            ]
+        );
 
-        if (!$this->sendOtp($user, $otp)) {
+        if (!$this->sendOtpToMobile($mobile, $otp)) {
             return response()->json([
-                'message' => 'Account created, but OTP SMS could not be sent. Please tap Resend OTP.',
+                'message' => 'Registration received, but OTP SMS could not be sent. Please tap Resend OTP.',
                 'otp_required' => true,
                 'otp_debug_code' => $this->debugOtpCode($otp),
-                'user' => $this->formatUser($user),
             ], 503);
         }
 
         return response()->json([
-            'message' => 'Account created successfully. OTP has been sent.',
+            'message' => 'OTP has been sent. Verify code to complete account creation.',
             'otp_required' => true,
             'otp_debug_code' => $this->debugOtpCode($otp),
-            'user' => $this->formatUser($user),
-        ], 201);
+        ], 202);
     }
 
     public function login(Request $request): JsonResponse
@@ -113,6 +140,32 @@ class AuthController extends Controller
             ->where('role', $role)
             ->first();
         if ($user === null || !Hash::check((string) $request->string('password'), $user->password)) {
+            $pending = PendingRegistration::query()
+                ->where('mobile', $mobile)
+                ->where('role', $role)
+                ->first();
+            if ($pending !== null) {
+                $otp = $this->generateOtp();
+                $pending->forceFill([
+                    'otp_code' => $otp,
+                    'otp_expires_at' => now()->addMinutes(10),
+                ])->save();
+
+                if (!$this->sendOtpToMobile($mobile, $otp)) {
+                    return response()->json([
+                        'message' => 'Account is pending verification, but OTP SMS could not be sent.',
+                        'otp_required' => true,
+                        'otp_debug_code' => $this->debugOtpCode($otp),
+                    ], 503);
+                }
+
+                return response()->json([
+                    'message' => 'Verify your OTP before logging in.',
+                    'otp_required' => true,
+                    'otp_debug_code' => $this->debugOtpCode($otp),
+                ], 403);
+            }
+
             return response()->json([
                 'message' => 'Invalid credentials.',
             ], 401);
@@ -125,7 +178,7 @@ class AuthController extends Controller
                 'otp_expires_at' => now()->addMinutes(10),
             ])->save();
 
-            if (!$this->sendOtp($user, $otp)) {
+            if (!$this->sendOtpToMobile((string) $user->mobile, $otp)) {
                 return response()->json([
                     'message' => 'OTP SMS could not be sent right now. Please tap Resend OTP.',
                     'otp_required' => true,
@@ -168,6 +221,73 @@ class AuthController extends Controller
         $mobile = $this->normalizeMobile((string) $request->string('mobile'));
         $role = (string) $request->string('role');
         $otp = trim((string) $request->string('otp'));
+        $pending = PendingRegistration::query()
+            ->where('mobile', $mobile)
+            ->where('role', $role)
+            ->first();
+
+        if ($pending !== null) {
+            if (!hash_equals((string) $pending->otp_code, $otp)) {
+                return response()->json([
+                    'message' => 'OTP verification failed.',
+                    'otp_required' => true,
+                ], 422);
+            }
+
+            if ($pending->otp_expires_at !== null && now()->greaterThan($pending->otp_expires_at)) {
+                return response()->json([
+                    'message' => 'OTP has expired. Please request a new code.',
+                    'otp_required' => true,
+                ], 422);
+            }
+
+            $payload = is_array($pending->payload) ? $pending->payload : [];
+            $user = DB::transaction(function () use ($mobile, $role, $payload): User {
+                $user = User::query()
+                    ->where('mobile', $mobile)
+                    ->where('role', $role)
+                    ->first();
+
+                $data = [
+                    'name' => (string) ($payload['name'] ?? ''),
+                    'email' => (string) ($payload['email'] ?? $this->buildSyntheticEmail($mobile, $role)),
+                    'mobile' => $mobile,
+                    'role' => $role,
+                    'middle_name' => $payload['middle_name'] ?? null,
+                    'suffix' => $payload['suffix'] ?? null,
+                    'religion' => $payload['religion'] ?? null,
+                    'province' => $payload['province'] ?? null,
+                    'city_municipality' => $payload['city_municipality'] ?? null,
+                    'barangay' => $payload['barangay'] ?? null,
+                    'activation_completed' => (bool) ($payload['activation_completed'] ?? ($role === 'resident')),
+                    'otp_verified_at' => now(),
+                    'otp_code' => null,
+                    'otp_expires_at' => null,
+                ];
+
+                $passwordHash = (string) ($payload['password_hash'] ?? '');
+                if ($passwordHash !== '') {
+                    $data['password'] = $passwordHash;
+                }
+
+                if ($user === null) {
+                    return User::query()->create($data);
+                }
+
+                $user->forceFill($data)->save();
+                return $user->fresh();
+            });
+
+            $pending->delete();
+            $token = $this->issueToken($user);
+
+            return response()->json([
+                'message' => 'OTP verified successfully.',
+                'token' => $token,
+                'user' => $this->formatUser($user->fresh()),
+            ]);
+        }
+
         $user = User::query()
             ->where('mobile', $mobile)
             ->where('role', $role)
@@ -220,6 +340,36 @@ class AuthController extends Controller
             ->where('mobile', $mobile)
             ->where('role', $role)
             ->first();
+        $pending = PendingRegistration::query()
+            ->where('mobile', $mobile)
+            ->where('role', $role)
+            ->first();
+        if ($pending !== null) {
+            $otp = $this->generateOtp();
+            $pending->forceFill([
+                'otp_code' => $otp,
+                'otp_expires_at' => now()->addMinutes(10),
+            ])->save();
+
+            if (!$this->sendOtpToMobile($mobile, $otp)) {
+                return response()->json([
+                    'message' => 'OTP SMS could not be sent right now. Please try again.',
+                    'otp_required' => true,
+                    'otp_debug_code' => $this->debugOtpCode($otp),
+                ], 503);
+            }
+
+            return response()->json([
+                'message' => 'OTP has been resent.',
+                'otp_required' => true,
+                'otp_debug_code' => $this->debugOtpCode($otp),
+            ]);
+        }
+
+        $user = User::query()
+            ->where('mobile', $mobile)
+            ->where('role', $role)
+            ->first();
         if ($user === null) {
             return response()->json([
                 'message' => 'Account not found.',
@@ -232,7 +382,7 @@ class AuthController extends Controller
             'otp_expires_at' => now()->addMinutes(10),
         ])->save();
 
-        if (!$this->sendOtp($user, $otp)) {
+        if (!$this->sendOtpToMobile((string) $user->mobile, $otp)) {
             return response()->json([
                 'message' => 'OTP SMS could not be sent right now. Please try again.',
                 'otp_required' => true,
@@ -448,6 +598,11 @@ class AuthController extends Controller
 
     private function sendOtp(User $user, string $otp): bool
     {
+        return $this->sendOtpToMobile((string) $user->mobile, $otp);
+    }
+
+    private function sendOtpToMobile(string $mobile, string $otp): bool
+    {
         if (!$this->shouldSendSms()) {
             return true;
         }
@@ -461,7 +616,7 @@ class AuthController extends Controller
             return false;
         }
 
-        $mobile = $this->toTxtboxNumber((string) $user->mobile);
+        $mobile = $this->toTxtboxNumber($mobile);
         $message = "Your BarangayMo OTP is {$otp}. Valid for 10 minutes. Do not share this code.";
 
         try {
