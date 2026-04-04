@@ -41,26 +41,23 @@ class ResidentRbiRecordController extends Controller
             ], 403);
         }
 
-        $barangay = $this->resolveBarangay($request, $user);
+        [$province, $city, $barangay] = $this->resolveScope($request, $user);
         if ($barangay === '') {
             return response()->json([
                 'message' => 'Set your barangay in your profile before opening RBI records.',
             ], 422);
         }
-
-        $city = trim((string) $user->city_municipality);
-        $province = trim((string) $user->province);
         $search = trim((string) $request->query('q', ''));
 
         $query = ResidentRbiRecord::query()
             ->with('user')
-            ->where('barangay', $barangay);
+            ->whereRaw('LOWER(TRIM(barangay)) = ?', [$this->normalizeScopeValue($barangay)]);
 
         if ($city !== '') {
-            $query->where('city_municipality', $city);
+            $query->whereRaw('LOWER(TRIM(city_municipality)) = ?', [$this->normalizeScopeValue($city)]);
         }
         if ($province !== '') {
-            $query->where('province', $province);
+            $query->whereRaw('LOWER(TRIM(province)) = ?', [$this->normalizeScopeValue($province)]);
         }
 
         if ($search !== '') {
@@ -174,7 +171,10 @@ class ResidentRbiRecordController extends Controller
         }
 
         $officialBarangay = trim((string) $user->barangay);
-        if ($officialBarangay !== '' && trim((string) $record->barangay) !== $officialBarangay) {
+        if (
+            $officialBarangay !== '' &&
+            $this->normalizeScopeValue(trim((string) $record->barangay)) !== $this->normalizeScopeValue($officialBarangay)
+        ) {
             return response()->json([
                 'message' => 'You can only verify records inside your barangay.',
             ], 403);
@@ -198,17 +198,47 @@ class ResidentRbiRecordController extends Controller
         return Auth::guard('api')->user();
     }
 
-    private function resolveBarangay(Request $request, User $user): string
+    /**
+     * @return array{string,string,string}
+     */
+    private function resolveScope(Request $request, User $user): array
     {
+        $province = trim((string) $user->province);
+        $city = trim((string) $user->city_municipality);
         $barangay = trim((string) $user->barangay);
+
+        if ($province === '') {
+            $province = trim((string) $request->query('province', $request->input('province', '')));
+        }
+        if ($city === '') {
+            $city = trim((string) $request->query('city_municipality', $request->input('city_municipality', '')));
+        }
         if ($barangay === '') {
-            $fallback = trim((string) $request->query('barangay', ''));
-            if ($fallback !== '') {
-                $barangay = mb_substr($fallback, 0, 191);
-                $user->forceFill(['barangay' => $barangay])->save();
-            }
+            $barangay = trim((string) $request->query('barangay', $request->input('barangay', '')));
         }
 
-        return $barangay;
+        $updates = [];
+        if ($province !== '' && trim((string) $user->province) === '') {
+            $updates['province'] = mb_substr($province, 0, 100);
+        }
+        if ($city !== '' && trim((string) $user->city_municipality) === '') {
+            $updates['city_municipality'] = mb_substr($city, 0, 100);
+        }
+        if ($barangay !== '' && trim((string) $user->barangay) === '') {
+            $updates['barangay'] = mb_substr($barangay, 0, 191);
+        }
+        if ($updates !== []) {
+            $user->forceFill($updates)->save();
+            $province = trim((string) ($updates['province'] ?? $province));
+            $city = trim((string) ($updates['city_municipality'] ?? $city));
+            $barangay = trim((string) ($updates['barangay'] ?? $barangay));
+        }
+
+        return [$province, $city, $barangay];
+    }
+
+    private function normalizeScopeValue(string $value): string
+    {
+        return mb_strtolower(trim((string) preg_replace('/\s+/', ' ', $value)));
     }
 }
