@@ -34,6 +34,7 @@ class CommunityPostResource extends JsonResource
             'user_id' => $this->user_id,
             'author' => $this->author_name,
             'message' => $this->message,
+            'post_type' => trim((string) ($this->post_type ?? 'social')),
             'image_base64' => $this->image_base64,
             'barangay' => $this->barangay,
             'is_official' => (bool) $this->is_official,

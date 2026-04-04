@@ -14,6 +14,7 @@ use App\Services\Official\OfficialNotificationPublisher;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Schema;
 
 class PostController extends Controller
 {
@@ -99,15 +100,20 @@ class PostController extends Controller
         $validated = $request->validated();
         $isOfficial = $user->role === 'official';
         $authorName = $this->postService->resolveAuthorName($user, $barangay, $isOfficial);
+        $postType = $this->normalizePostType($validated['post_type'] ?? null);
 
-        $post = CommunityPost::query()->create([
+        $payload = [
             'user_id' => $user->id,
             'barangay' => $barangay,
             'author_name' => $authorName,
             'message' => trim((string) $validated['message']),
             'image_base64' => $this->postService->normalizeImagePayload($validated['image_base64'] ?? null),
             'is_official' => $isOfficial,
-        ]);
+        ];
+        if (Schema::hasColumn('community_posts', 'post_type')) {
+            $payload['post_type'] = $postType;
+        }
+        $post = CommunityPost::query()->create($payload);
 
         if (!$isOfficial) {
             $this->notificationPublisher->publishForOfficialScope(
@@ -177,10 +183,15 @@ class PostController extends Controller
         }
 
         $validated = $request->validated();
-        $post->forceFill([
+        $postType = $this->normalizePostType($validated['post_type'] ?? null);
+        $payload = [
             'message' => trim((string) $validated['message']),
             'image_base64' => $this->postService->normalizeImagePayload($validated['image_base64'] ?? null),
-        ])->save();
+        ];
+        if (Schema::hasColumn('community_posts', 'post_type')) {
+            $payload['post_type'] = $postType;
+        }
+        $post->forceFill($payload)->save();
 
         return response()->json([
             'message' => 'Post updated.',
@@ -261,5 +272,15 @@ class PostController extends Controller
     {
         /** @var User|null $user */
         return Auth::guard('api')->user();
+    }
+
+    private function normalizePostType(mixed $raw): string
+    {
+        $postType = trim(mb_strtolower((string) $raw));
+        if ($postType === '') {
+            return 'social';
+        }
+        $allowed = ['social', 'announcement', 'event', 'volunteer'];
+        return in_array($postType, $allowed, true) ? $postType : 'social';
     }
 }
