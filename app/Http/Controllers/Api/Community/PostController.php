@@ -10,6 +10,7 @@ use App\Models\CommunityPost;
 use App\Models\CommunityPostLike;
 use App\Models\User;
 use App\Services\Community\CommunityPostService;
+use App\Services\Official\OfficialNotificationPublisher;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -24,7 +25,8 @@ class PostController extends Controller
     private const POSTABLE_ROLES = ['resident', 'official'];
 
     public function __construct(
-        private readonly CommunityPostService $postService
+        private readonly CommunityPostService $postService,
+        private readonly OfficialNotificationPublisher $notificationPublisher,
     ) {}
 
     public function index(Request $request): JsonResponse
@@ -106,6 +108,23 @@ class PostController extends Controller
             'image_base64' => $this->postService->normalizeImagePayload($validated['image_base64'] ?? null),
             'is_official' => $isOfficial,
         ]);
+
+        if (!$isOfficial) {
+            $this->notificationPublisher->publishForOfficialScope(
+                sourceUser: $user,
+                title: 'New community post',
+                body: sprintf('%s posted a community update.', $authorName),
+                category: 'Community',
+                priority: 'normal',
+                recordType: 'community_post',
+                recordId: (string) $post->id,
+                deepLink: 'barangaymo://official/community',
+                metadata: [
+                    'author_name' => $authorName,
+                    'barangay' => $barangay,
+                ],
+            );
+        }
 
         return response()->json([
             'message' => 'Post published.',

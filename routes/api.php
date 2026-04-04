@@ -14,6 +14,7 @@ use App\Http\Controllers\Api\Market\MarketProductController;
 use App\Http\Controllers\Api\Official\DashboardSummaryController;
 use App\Http\Controllers\Api\Official\EmergencyContactController;
 use App\Http\Controllers\Api\Official\OfficialGovAgencyController;
+use App\Http\Controllers\Api\Official\OfficialNotificationController;
 use App\Http\Controllers\Api\Official\RecentActivityController;
 use App\Http\Controllers\Api\Emergency\SharedLocationController;
 use App\Http\Controllers\Api\Profile\ResidentProfileController;
@@ -70,6 +71,9 @@ Route::middleware('auth:api')->group(function (): void {
     Route::post('/official/gov-agencies', [OfficialGovAgencyController::class, 'store']);
     Route::patch('/official/gov-agencies/{agencyId}', [OfficialGovAgencyController::class, 'update']);
     Route::delete('/official/gov-agencies/{agencyId}', [OfficialGovAgencyController::class, 'destroy']);
+    Route::get('/official/notifications', [OfficialNotificationController::class, 'index']);
+    Route::patch('/official/notifications/{notificationId}/read', [OfficialNotificationController::class, 'markRead']);
+    Route::patch('/official/notifications/read-all', [OfficialNotificationController::class, 'markAllRead']);
     Route::get('/emergency/contacts', [EmergencyContactController::class, 'index']);
     Route::post('/emergency/contacts', [EmergencyContactController::class, 'store']);
     Route::patch('/emergency/contacts/{contactId}', [EmergencyContactController::class, 'update']);

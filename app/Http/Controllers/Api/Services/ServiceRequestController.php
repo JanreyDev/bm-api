@@ -8,12 +8,17 @@ use App\Http\Requests\Api\UpdateServiceRequestStatusRequest;
 use App\Http\Resources\Services\ServiceRequestResource;
 use App\Models\ServiceRequest;
 use App\Models\User;
+use App\Services\Official\OfficialNotificationPublisher;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
 class ServiceRequestController extends Controller
 {
+    public function __construct(
+        private readonly OfficialNotificationPublisher $notificationPublisher
+    ) {}
+
     public function index(Request $request): JsonResponse
     {
         $user = $this->authenticatedUserOrNull();
@@ -79,6 +84,31 @@ class ServiceRequestController extends Controller
             'attachments_json' => $attachments,
             'status' => 'Pending',
         ]);
+
+        $residentName = trim((string) $user->name);
+        if ($residentName === '') {
+            $residentName = 'A resident';
+        }
+        $this->notificationPublisher->publishForOfficialScope(
+            sourceUser: $user,
+            title: 'New service request submitted',
+            body: sprintf(
+                '%s submitted %s (%s).',
+                $residentName,
+                trim((string) $entry->service_title),
+                trim((string) $entry->request_id),
+            ),
+            category: 'Services',
+            priority: 'high',
+            recordType: 'service_request',
+            recordId: (string) $entry->id,
+            deepLink: 'barangaymo://official/services/requests',
+            metadata: [
+                'service_category' => trim((string) $entry->service_category),
+                'request_id' => trim((string) $entry->request_id),
+                'barangay' => $barangay,
+            ],
+        );
 
         return response()->json([
             'message' => 'Service request submitted.',

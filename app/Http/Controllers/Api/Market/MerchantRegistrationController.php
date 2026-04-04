@@ -7,12 +7,17 @@ use App\Http\Requests\Api\StoreMerchantRegistrationRequest;
 use App\Http\Resources\Market\MerchantRegistrationResource;
 use App\Models\MerchantRegistration;
 use App\Models\User;
+use App\Services\Official\OfficialNotificationPublisher;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
 class MerchantRegistrationController extends Controller
 {
+    public function __construct(
+        private readonly OfficialNotificationPublisher $notificationPublisher
+    ) {}
+
     public function show(Request $request): JsonResponse
     {
         $user = $this->authenticatedUserOrNull();
@@ -79,6 +84,30 @@ class MerchantRegistrationController extends Controller
                 'merchant_verified' => $verified,
                 'verification_status' => $verificationStatus,
             ]
+        );
+
+        $residentName = trim((string) $user->name);
+        if ($residentName === '') {
+            $residentName = 'A resident';
+        }
+        $this->notificationPublisher->publishForOfficialScope(
+            sourceUser: $user,
+            title: 'Merchant registration submitted',
+            body: sprintf(
+                '%s submitted merchant registration for %s.',
+                $residentName,
+                trim((string) $registration->business_name),
+            ),
+            category: 'Marketplace',
+            priority: $verified ? 'normal' : 'high',
+            recordType: 'merchant_registration',
+            recordId: (string) $registration->id,
+            deepLink: 'barangaymo://official/market',
+            metadata: [
+                'verification_status' => $verificationStatus,
+                'merchant_verified' => (bool) $registration->merchant_verified,
+                'business_name' => trim((string) $registration->business_name),
+            ],
         );
 
         return response()->json([
