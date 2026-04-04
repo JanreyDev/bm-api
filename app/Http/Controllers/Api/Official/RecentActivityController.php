@@ -101,10 +101,28 @@ class RecentActivityController extends Controller
                 ];
             });
 
+        $merchantEvents = \App\Models\MerchantRegistration::query()
+            ->where('barangay', $barangay)
+            ->latest()
+            ->take(5)
+            ->get()
+            ->map(static function (\App\Models\MerchantRegistration $reg): array {
+                $bus = trim((string) ($reg->business_name ?? 'Merchant'));
+                $status = $reg->merchant_verified ? 'approved' : ($reg->verification_status ?? 'pending');
+
+                return [
+                    'type' => 'market',
+                    'title' => 'Merchant registration',
+                    'note' => sprintf('%s (%s)', $bus, mb_strtolower($status)),
+                    'timestamp' => optional($reg->updated_at ?? $reg->created_at)?->toIso8601String(),
+                ];
+            });
+
         $activities = (new Collection())
             ->concat($requestEvents)
             ->concat($communityEvents)
             ->concat($productEvents)
+            ->concat($merchantEvents)
             ->filter(static fn (array $entry): bool => !empty($entry['timestamp']))
             ->sortByDesc(static fn (array $entry): string => (string) $entry['timestamp'])
             ->values()
