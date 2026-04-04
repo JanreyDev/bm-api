@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api\Official;
 use App\Http\Controllers\Controller;
 use App\Models\CommunityPost;
 use App\Models\MarketProduct;
+use App\Models\OfficialBarangaySetup;
 use App\Models\ResidentProfile;
 use App\Models\ResidentRbiRecord;
 use App\Models\ServiceRequest;
@@ -41,8 +42,12 @@ class DashboardSummaryController extends Controller
         $municipalUsersQuery = User::query()
             ->whereIn('role', ['resident', 'official'])
             ->where(static function (Builder $query) use ($province, $city): void {
-                self::applyScopeFilter($query, 'province', $province);
-                self::applyScopeFilter($query, 'city_municipality', $city);
+                if (trim($province) !== '') {
+                    self::applyScopeFilter($query, 'province', $province);
+                }
+                if (trim($city) !== '') {
+                    self::applyScopeFilter($query, 'city_municipality', $city);
+                }
             });
         $residentUsers = (clone $municipalUsersQuery)
             ->where('role', 'resident')
@@ -58,8 +63,12 @@ class DashboardSummaryController extends Controller
                 $query
                     ->where('role', 'resident')
                     ->where(static function (Builder $scope) use ($province, $city): void {
-                        self::applyScopeFilter($scope, 'province', $province);
-                        self::applyScopeFilter($scope, 'city_municipality', $city);
+                        if (trim($province) !== '') {
+                            self::applyScopeFilter($scope, 'province', $province);
+                        }
+                        if (trim($city) !== '') {
+                            self::applyScopeFilter($scope, 'city_municipality', $city);
+                        }
                     });
             })
             ->sum('household_size');
@@ -145,6 +154,24 @@ class DashboardSummaryController extends Controller
         $province = trim((string) $user->province);
         $city = trim((string) $user->city_municipality);
         $barangay = trim((string) $user->barangay);
+
+        if ($province === '' || $city === '' || $barangay === '') {
+            $setup = OfficialBarangaySetup::query()
+                ->where('updated_by_user_id', $user->id)
+                ->latest('id')
+                ->first();
+            if ($setup !== null) {
+                if ($province === '') {
+                    $province = trim((string) $setup->province);
+                }
+                if ($city === '') {
+                    $city = trim((string) $setup->city_municipality);
+                }
+                if ($barangay === '') {
+                    $barangay = trim((string) $setup->barangay);
+                }
+            }
+        }
         $updates = [];
         if ($province === '') {
             $province = trim((string) $request->query('province', ''));
