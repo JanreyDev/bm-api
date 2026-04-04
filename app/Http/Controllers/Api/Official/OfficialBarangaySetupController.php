@@ -26,11 +26,7 @@ class OfficialBarangaySetupController extends Controller
             ], 422);
         }
 
-        $entry = OfficialBarangaySetup::query()
-            ->where('province', $province)
-            ->where('city_municipality', $city)
-            ->where('barangay', $barangay)
-            ->first();
+        $entry = $this->findSetupByScope($province, $city, $barangay);
 
         return response()->json([
             'message' => 'Barangay branding loaded.',
@@ -64,11 +60,7 @@ class OfficialBarangaySetupController extends Controller
             ], 422);
         }
 
-        $entry = OfficialBarangaySetup::query()
-            ->where('province', $province)
-            ->where('city_municipality', $city)
-            ->where('barangay', $barangay)
-            ->first();
+        $entry = $this->findSetupByScope($province, $city, $barangay);
 
         return response()->json([
             'message' => 'Barangay setup loaded.',
@@ -181,6 +173,36 @@ class OfficialBarangaySetupController extends Controller
             ->sum('household_size');
 
         return max((int) $residentUsers, (int) $populationFromHousehold);
+    }
+
+    private function findSetupByScope(
+        string $province,
+        string $city,
+        string $barangay,
+    ): ?OfficialBarangaySetup {
+        $exact = OfficialBarangaySetup::query()
+            ->whereRaw('LOWER(TRIM(province)) = LOWER(TRIM(?))', [$province])
+            ->whereRaw('LOWER(TRIM(city_municipality)) = LOWER(TRIM(?))', [$city])
+            ->whereRaw('LOWER(TRIM(barangay)) = LOWER(TRIM(?))', [$barangay])
+            ->latest('id')
+            ->first();
+        if ($exact !== null) {
+            return $exact;
+        }
+
+        $provinceBarangay = OfficialBarangaySetup::query()
+            ->whereRaw('LOWER(TRIM(province)) = LOWER(TRIM(?))', [$province])
+            ->whereRaw('LOWER(TRIM(barangay)) = LOWER(TRIM(?))', [$barangay])
+            ->latest('id')
+            ->first();
+        if ($provinceBarangay !== null) {
+            return $provinceBarangay;
+        }
+
+        return OfficialBarangaySetup::query()
+            ->whereRaw('LOWER(TRIM(barangay)) = LOWER(TRIM(?))', [$barangay])
+            ->latest('id')
+            ->first();
     }
 
     private function hasHttpScheme(string $value): bool
