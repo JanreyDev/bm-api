@@ -7,6 +7,7 @@ use App\Http\Requests\Api\StoreMarketProductRequest;
 use App\Http\Resources\Market\MarketProductResource;
 use App\Models\MarketProduct;
 use App\Models\MerchantRegistration;
+use App\Models\OfficialBarangaySetup;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -23,7 +24,7 @@ class MarketProductController extends Controller
             ], 401);
         }
 
-        $barangay = trim((string) $user->barangay);
+        $barangay = $this->resolveBarangay($user);
         if ($barangay === '') {
             return response()->json([
                 'message' => 'Set your barangay in your profile before opening marketplace.',
@@ -53,7 +54,7 @@ class MarketProductController extends Controller
             ], 401);
         }
 
-        $barangay = trim((string) $user->barangay);
+        $barangay = $this->resolveBarangay($user);
         if ($barangay === '') {
             return response()->json([
                 'message' => 'Set your barangay in your profile before posting products.',
@@ -168,5 +169,27 @@ class MarketProductController extends Controller
     {
         /** @var User|null $user */
         return Auth::guard('api')->user();
+    }
+
+    private function resolveBarangay(User $user): string
+    {
+        $barangay = trim((string) $user->barangay);
+        if ($barangay !== '') {
+            return $barangay;
+        }
+        if (trim((string) $user->role) === 'official') {
+            $setup = OfficialBarangaySetup::query()
+                ->where('updated_by_user_id', $user->id)
+                ->latest('id')
+                ->first();
+            if ($setup !== null) {
+                $fallback = trim((string) $setup->barangay);
+                if ($fallback !== '') {
+                    $user->forceFill(['barangay' => mb_substr($fallback, 0, 100)])->save();
+                    return $fallback;
+                }
+            }
+        }
+        return '';
     }
 }

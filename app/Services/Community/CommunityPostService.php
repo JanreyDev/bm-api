@@ -3,6 +3,7 @@
 namespace App\Services\Community;
 
 use App\Models\CommunityPost;
+use App\Models\OfficialBarangaySetup;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Collection;
 
@@ -11,6 +12,22 @@ class CommunityPostService
     public function resolveBarangayOrNull(User $user): ?string
     {
         $barangay = trim((string) $user->barangay);
+        if ($barangay !== '') {
+            return $barangay;
+        }
+        if (trim((string) $user->role) === 'official') {
+            $setup = OfficialBarangaySetup::query()
+                ->where('updated_by_user_id', $user->id)
+                ->latest('id')
+                ->first();
+            if ($setup !== null) {
+                $fallback = trim((string) $setup->barangay);
+                if ($fallback !== '') {
+                    $user->forceFill(['barangay' => mb_substr($fallback, 0, 100)])->save();
+                    return $fallback;
+                }
+            }
+        }
 
         return $barangay !== '' ? $barangay : null;
     }
