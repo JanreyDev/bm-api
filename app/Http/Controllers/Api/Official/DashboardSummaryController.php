@@ -64,7 +64,9 @@ class DashboardSummaryController extends Controller
             })
             ->sum('household_size');
 
-        $population = max((int) $registeredUsersTotal, (int) $populationFromHousehold);
+        // Dashboard "Total Population" should reflect registered account count
+        // (resident + official) for the official's municipality scope.
+        $population = (int) $registeredUsersTotal;
 
         $verifiedRbiCount = ResidentRbiRecord::query()
             ->where('barangay', $barangay)
