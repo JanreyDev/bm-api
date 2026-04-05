@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\StoreMarketOrderRequest;
 use App\Http\Resources\Market\MarketOrderResource;
 use App\Models\MarketOrder;
+use App\Models\MarketProduct;
 use App\Models\MerchantRegistration;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
@@ -206,6 +207,7 @@ class MarketOrderController extends Controller
 
         $target->status = $status;
         $target->save();
+        $this->syncProductSoldCountsForOrder($target);
 
         return response()->json([
             'message' => 'Seller order status updated.',
@@ -249,6 +251,78 @@ class MarketOrderController extends Controller
         $mapped['seller_delivery_fee'] = (float) $sellerDeliveryFee;
         $mapped['seller_total'] = (float) $sellerTotal;
         return $mapped;
+    }
+
+    private function syncProductSoldCountsForOrder(MarketOrder $order): void
+    {
+        $items = is_array($order->items_json) ? $order->items_json : [];
+        $targets = [];
+        foreach ($items as $entry) {
+            if (!is_array($entry)) {
+                continue;
+            }
+            $seller = trim((string) ($entry['seller'] ?? ''));
+            $title = trim((string) ($entry['title'] ?? ''));
+            if ($seller === '' || $title === '') {
+                continue;
+            }
+            $targets[mb_strtolower($seller) . '|' . mb_strtolower($title)] = [
+                'seller' => $seller,
+                'title' => $title,
+            ];
+        }
+
+        if ($targets === []) {
+            return;
+        }
+
+        foreach ($targets as $target) {
+            $sold = $this->completedSoldUnitsForProduct(
+                trim((string) $order->barangay),
+                $target['seller'],
+                $target['title'],
+            );
+
+            MarketProduct::query()
+                ->inBarangay(trim((string) $order->barangay))
+                ->whereRaw('LOWER(TRIM(seller_name)) = ?', [mb_strtolower(trim($target['seller']))])
+                ->whereRaw('LOWER(TRIM(title)) = ?', [mb_strtolower(trim($target['title']))])
+                ->update(['sold' => $sold]);
+        }
+    }
+
+    private function completedSoldUnitsForProduct(
+        string $barangay,
+        string $sellerName,
+        string $productTitle
+    ): int {
+        $orders = MarketOrder::query()
+            ->inBarangay($barangay)
+            ->whereIn('status', ['Completed', 'Fulfilled'])
+            ->latest()
+            ->limit(1000)
+            ->get();
+
+        $total = 0;
+        foreach ($orders as $order) {
+            $items = is_array($order->items_json) ? $order->items_json : [];
+            foreach ($items as $entry) {
+                if (!is_array($entry)) {
+                    continue;
+                }
+                $entrySeller = trim((string) ($entry['seller'] ?? ''));
+                $entryTitle = trim((string) ($entry['title'] ?? ''));
+                if (
+                    mb_strtolower($entrySeller) !== mb_strtolower(trim($sellerName)) ||
+                    mb_strtolower($entryTitle) !== mb_strtolower(trim($productTitle))
+                ) {
+                    continue;
+                }
+                $total += (int) ($entry['qty'] ?? 0);
+            }
+        }
+
+        return max(0, $total);
     }
 
     private function authenticatedUserOrNull(): ?User

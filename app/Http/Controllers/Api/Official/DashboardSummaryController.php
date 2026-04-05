@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\Official;
 
 use App\Http\Controllers\Controller;
 use App\Models\CommunityPost;
+use App\Models\MarketOrder;
 use App\Models\MarketProduct;
 use App\Models\MerchantRegistration;
 use App\Models\OfficialBarangaySetup;
@@ -119,6 +120,23 @@ class DashboardSummaryController extends Controller
         $communityPosts = CommunityPost::query()
             ->inBarangay($barangay)
             ->count();
+
+        $soldUnits = 0;
+        $completedOrders = MarketOrder::query()
+            ->inBarangay($barangay)
+            ->whereIn('status', ['Completed', 'Fulfilled'])
+            ->latest()
+            ->limit(800)
+            ->get();
+        foreach ($completedOrders as $order) {
+            $items = is_array($order->items_json) ? $order->items_json : [];
+            foreach ($items as $item) {
+                if (!is_array($item)) {
+                    continue;
+                }
+                $soldUnits += (int) ($item['qty'] ?? 0);
+            }
+        }
         
         $verifiedMerchants = MerchantRegistration::query()
             ->inBarangay($barangay)
@@ -150,6 +168,8 @@ class DashboardSummaryController extends Controller
                 'merchant_verified_count' => (int) $verifiedMerchants,
                 'community_posts_total' => (int) $communityPosts,
                 'community_posts' => (int) $communityPosts,
+                'sold_units' => (int) $soldUnits,
+                'market_sold_units' => (int) $soldUnits,
             ],
             'population' => (int) $population,
         ]);
