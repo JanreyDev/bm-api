@@ -171,10 +171,10 @@ class MarketOrderController extends Controller
         }
 
         $status = trim((string) $request->input('status', ''));
-        $allowed = ['Pending', 'Paid', 'Fulfilled'];
+        $allowed = ['Pending', 'Paid', 'Processing', 'Fulfilled', 'Completed', 'Cancelled'];
         if (!in_array($status, $allowed, true)) {
             return response()->json([
-                'message' => 'Invalid status. Allowed: Pending, Paid, Fulfilled.',
+                'message' => 'Invalid status. Allowed: Pending, Paid, Processing, Fulfilled, Completed, Cancelled.',
             ], 422);
         }
 
