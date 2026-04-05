@@ -68,6 +68,8 @@ Route::middleware('auth:api')->group(function (): void {
     Route::post('/market/chat/messages', [MarketChatMessageController::class, 'store']);
     Route::get('/market/orders', [MarketOrderController::class, 'index']);
     Route::post('/market/orders', [MarketOrderController::class, 'store']);
+    Route::get('/market/seller/orders', [MarketOrderController::class, 'sellerIndex']);
+    Route::patch('/market/seller/orders/{orderCode}/status', [MarketOrderController::class, 'sellerUpdateStatus']);
     Route::get('/services/requests', [ServiceRequestController::class, 'index']);
     Route::post('/services/requests', [ServiceRequestController::class, 'store']);
     Route::patch('/services/requests/{serviceRequestId}/status', [ServiceRequestController::class, 'updateStatus']);
