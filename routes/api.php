@@ -11,6 +11,7 @@ use App\Http\Controllers\Api\Jobs\JobHunterInvitationController;
 use App\Http\Controllers\Api\Jobs\SavedJobController;
 use App\Http\Controllers\Api\Market\MerchantRegistrationController;
 use App\Http\Controllers\Api\Market\MarketChatMessageController;
+use App\Http\Controllers\Api\Market\MarketOrderController;
 use App\Http\Controllers\Api\Market\MarketProductController;
 use App\Http\Controllers\Api\Official\DashboardSummaryController;
 use App\Http\Controllers\Api\Official\OfficialBarangaySetupController;
@@ -65,6 +66,8 @@ Route::middleware('auth:api')->group(function (): void {
     Route::post('/market/products', [MarketProductController::class, 'store']);
     Route::get('/market/chat/messages', [MarketChatMessageController::class, 'index']);
     Route::post('/market/chat/messages', [MarketChatMessageController::class, 'store']);
+    Route::get('/market/orders', [MarketOrderController::class, 'index']);
+    Route::post('/market/orders', [MarketOrderController::class, 'store']);
     Route::get('/services/requests', [ServiceRequestController::class, 'index']);
     Route::post('/services/requests', [ServiceRequestController::class, 'store']);
     Route::patch('/services/requests/{serviceRequestId}/status', [ServiceRequestController::class, 'updateStatus']);
