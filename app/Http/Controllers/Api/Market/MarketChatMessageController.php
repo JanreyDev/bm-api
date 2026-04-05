@@ -31,16 +31,15 @@ class MarketChatMessageController extends Controller
 
         $sellerName = trim((string) $request->query('seller_name', ''));
         $productTitle = trim((string) $request->query('product_title', ''));
-        $buyerMobile = trim((string) $request->query('buyer_mobile', ''));
-        if ($sellerName === '' || $productTitle === '' || $buyerMobile === '') {
+        if ($sellerName === '' || $productTitle === '') {
             return response()->json([
-                'message' => 'seller_name, product_title, and buyer_mobile are required.',
+                'message' => 'seller_name and product_title are required.',
             ], 422);
         }
 
         $messages = MarketChatMessage::query()
             ->inBarangay($barangay)
-            ->inThread($buyerMobile, $sellerName, $productTitle)
+            ->inProductThread($sellerName, $productTitle)
             ->latest()
             ->limit(500)
             ->get()

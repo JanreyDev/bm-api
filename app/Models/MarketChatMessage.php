@@ -47,14 +47,12 @@ class MarketChatMessage extends Model
         return $query->where('barangay', trim($barangay));
     }
 
-    public function scopeInThread(
+    public function scopeInProductThread(
         Builder $query,
-        string $buyerMobile,
         string $sellerName,
         string $productTitle
     ): Builder {
         return $query
-            ->where('buyer_mobile', trim($buyerMobile))
             ->where('seller_name', trim($sellerName))
             ->where('product_title', trim($productTitle));
     }
